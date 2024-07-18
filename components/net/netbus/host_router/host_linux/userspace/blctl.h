@@ -171,3 +171,29 @@ const char *blctl_cipher_to_str(uint8_t cipher);
  * @return 0 on success
  */
 int blctl_rnm_user_ext_send(blctl_handle_t handle, const void *msg, size_t msg_len);
+
+/**
+ * @brief Send a response message
+ *
+ * @param handle  blctl handle
+ * @param cmdid   the acking command ID
+ * @param msgid   the acking message ID
+ * @param msg     User msg payload
+ * @param msg_len User msg length in bytes
+ *
+ * @return 0 on success
+ */
+int blctl_rnm_send_resp(blctl_handle_t handle, uint16_t cmdid, uint16_t msgid,
+        const void *msg, size_t msg_len);
+
+/**
+ * @brief Send a user extension message to device
+ *
+ * @param handle  blctl handle
+ * @param msg     User ext msg payload
+ * @param msg_len msg length
+ * @param cmd     user cmd
+ *
+ * @return 0 on success
+ */
+int blctl_rnm_user_send_extension(blctl_handle_t handle, const void *msg, size_t msg_len, uint16_t cmd);

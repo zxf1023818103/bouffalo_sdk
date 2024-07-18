@@ -4,9 +4,9 @@ all: blctl blctld
 
 CC ?= gcc
 CFLAGS := -Wall -Wextra -O2 -g -pthread
-BLCTL_INCLUDE_DIRS := -I./
+BLCTL_INCLUDE_DIRS := -I./ -I../
 
-BLCTL_OBJS := blctl.o blctl_ota.o utils.o blctl_log.o
+BLCTL_OBJS := blctl.o blctl_ota.o utils.o blctl_log.o msg_handlers.o
 
 blctl: $(BLCTL_OBJS) blctl_main.o
 	@$(info Linking $@)

@@ -47,6 +47,8 @@ typedef enum {
     BF1B_CMD_EXT,
 
     BF1B_CMD_USER_EXT,
+    BF1B_CMD_USER_EXT_NO_RSP,
+    BF1B_CMD_USER_EXT_RSP,
 
     BF1B_CMD_MAX,
 } bf1b_cmd_t;

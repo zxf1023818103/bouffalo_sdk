@@ -58,6 +58,10 @@ void usage(const char *prog)
                     "                   Upgrade card firmware\n"
                     "               user_ext\n"
                     "                   Demo sending&receiving user ext msg\n"
+                    "               user_ext_rsp\n"
+                    "                   Demo sending&receiving user ext msg\n"
+                    "               user_ext_no_rsp\n"
+                    "                   Demo sending but no receiving user ext msg\n"
                     "               reboot\n"
                     "                   Reboot card\n"
                     "               version\n"
@@ -177,8 +181,13 @@ int set_auto_connect(const char *opt)
     return blctl_rnm_msg_expect_simple(ctl, (void *)&cmd, sizeof(cmd), NULL, 100);
 }
 
+int blctl_handle_one_rnm(blctl_handle_t handle, rnm_base_msg_t *msg,
+        void *data, int len);
+
 static void wildcard_msg_handler(void *msg, void *arg)
 {
+    int len;
+    unsigned char *ptr;
     ctl_port_msg_hdr_t *hdr = msg;
 
     switch (hdr->type) {
@@ -190,6 +199,11 @@ static void wildcard_msg_handler(void *msg, void *arg)
             const char *resp = (char *)((rnm_user_ext_msg_t *)rm)->payload;
             bl_logi("Response: %s\n", resp);
         }
+        len = hdr->length - sizeof(*hdr);
+        ptr = hdr->payload;
+        ptr += sizeof(*rm);
+        len -= sizeof(*rm);
+        blctl_handle_one_rnm(ctl, rm, ptr, len);
     }
         break;
     case CTL_PORT_MSG_IP_UPDATE:
@@ -208,9 +222,29 @@ int demo_user_ext(void)
     int ret;
     const char m[] = "hello, world!";
 
-    blctl_register_wildcard_msg_handler(ctl, wildcard_msg_handler, NULL);
     if ((ret = blctl_rnm_user_ext_send(ctl, m, sizeof(m))))
         return ret;
+    usleep(100 * 1000);
+
+    return 0;
+}
+
+int user_ext_cmd_example(uint8_t is_response)
+{
+    int ret;
+    const char m[] = "hello, world!";
+    
+    blctl_register_wildcard_msg_handler(ctl, wildcard_msg_handler, ctl);
+    if (is_response) {
+        if ((ret = blctl_rnm_user_send_extension(ctl, m, sizeof(m), BF1B_CMD_USER_EXT_RSP))) {
+            return ret;
+        }
+    } else {
+        if ((ret = blctl_rnm_user_send_extension(ctl, m, sizeof(m), BF1B_CMD_USER_EXT_NO_RSP))) {
+            return ret;
+        }
+    }
+
     usleep(100 * 1000);
 
     return 0;
@@ -277,6 +311,7 @@ int main(int argc, char *argv[])
         goto ret;
     }
 
+    blctl_register_wildcard_msg_handler(ctl, wildcard_msg_handler, NULL);
     cmd = argv[1];
     if (IS_CMD(cmd, "connect_ap")) {
 		switch (argc) {
@@ -325,7 +360,11 @@ int main(int argc, char *argv[])
         blctl_ota(ctl, argv[2]);
 	} else if (IS_CMD(cmd, "user_ext")) {
         demo_user_ext();
-    } else if (IS_CMD(cmd, "version")) {
+    } else if (IS_CMD(cmd, "user_ext_rsp")) {
+        user_ext_cmd_example(1);
+    } else if (IS_CMD(cmd, "user_ext_no_rsp")) {
+        user_ext_cmd_example(0);
+    }else if (IS_CMD(cmd, "version")) {
         usage(*argv);
     } else if (IS_CMD(cmd, "get_link_status")) {
         if (argc < ARG_LEN_GET_LINK_STATUS) {

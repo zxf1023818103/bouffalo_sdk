@@ -14,6 +14,7 @@
 
 #include "net_wifi_transceiver.h"
 #include <sdiowifi_config.h>
+#include <sdiowifi_tx_buf.h>
 
 typedef struct sdiowifi_mgmr {
     bool init;

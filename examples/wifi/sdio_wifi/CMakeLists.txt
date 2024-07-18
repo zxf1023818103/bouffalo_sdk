@@ -33,6 +33,7 @@ target_sources(app PRIVATE
                    app/src/pm/app_pm.c
                    app/src/pm/tickless.c
                    app/src/sample/app_sample.c
+                   app/src/rnm_user_ext/app_rnm_user.c
                    )
 
 #sdio

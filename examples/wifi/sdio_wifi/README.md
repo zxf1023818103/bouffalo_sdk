@@ -110,7 +110,26 @@ blctl ota <path to ota bin>
 blctl user_ext
 ```
 
-此命令演示了host和device传送用户自定义命令。用户可基于此添加功能。
+此命令演示了host和device传送用户自定义命令。用户可基于此添加功能（该命令不推荐使用）。
+
+```
+blctl user_ext_rsp
+```
+
+此命令演示了host主动发送命令给device，同时device回复给host。用户可基于此添加应用功能。
+
+```
+blctl user_ext_no_rsp
+```
+
+此命令演示了host主动发送命令给device，device收到命令后将内容打印出来，不会回复host。用户可基于此添加应用功能。
+
+以上3条命令分别对应BF1B_CMD_USER_EXT，BF1B_CMD_USER_EXT_RSP，BF1B_CMD_USER_EXT_NO_RSP这3个CMD，demo里面前两条命令效果是一样，这里建议客户使用后面两条命令，并且可以进行应用扩展。上述3条命令都是host主动发送给device的，如果希望device主动发送消息给host端，device端可以使用rnms_user_send_extension函数进行发送。
+
+**PS：**
+host端应用扩展请在userspace/msg_handlers.c中修改。
+
+device端应用扩展请在dev_net_mgmr/src/rnm_user_ext.c中修改。
 
 ## **DHCP**
 

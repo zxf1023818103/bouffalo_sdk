@@ -374,6 +374,7 @@ int blctl_rnm_msg_expect_simple(blctl_handle_t handle, void *msg, size_t msg_len
     return 0;
 }
 
+/* this api will deprecation, use blctl_rnm_user_send_extension replace */
 int blctl_rnm_user_ext_send(blctl_handle_t handle, const void *msg, size_t msg_len)
 {
     blctl_env_t *env = handle;
@@ -385,6 +386,50 @@ int blctl_rnm_user_ext_send(blctl_handle_t handle, const void *msg, size_t msg_l
 
     memset(&rm->hdr, 0, sizeof(rm->hdr));
     rm->hdr.cmd = BF1B_CMD_USER_EXT;
+    rm->hdr.session_id = env->sid;
+    memcpy(rm->payload, msg, msg_len);
+
+    return ctl_msg_send(env, CTL_PORT_MSG_TRANSPARENT_HOST2DEVICE, rm, sizeof(*rm) + msg_len);
+}
+/* end */
+
+int blctl_rnm_send_resp(blctl_handle_t handle, uint16_t cmdid, uint16_t msgid,
+        const void *msg, size_t msglen)
+{
+    rnm_base_msg_t *hdr;
+    blctl_env_t *env = handle;
+    uint32_t total_len = msglen + sizeof(*hdr);
+    char msgbuf[CTL_PORT_MSG_LEN_MAX - CTL_PORT_MSG_HDR_LEN];
+
+    if (!handle || !msg || !msglen)
+        return -1;
+    if (total_len > sizeof(msgbuf))
+        return -1;
+
+    hdr = (rnm_base_msg_t *)msgbuf;
+    memset(hdr, 0, sizeof(*hdr));
+    /* this is an ack msg */
+    hdr->flags = RNM_MSG_FLAG_ACK;
+    /* this is the request this msg acks */
+    hdr->cmd = cmdid;
+    hdr->msg_id = msgid;
+    hdr->session_id = env->sid;
+    memcpy(&msgbuf[sizeof(*hdr)], msg, msglen);
+    return ctl_msg_send(env, CTL_PORT_MSG_TRANSPARENT_HOST2DEVICE, msgbuf,
+            total_len);
+}
+
+int blctl_rnm_user_send_extension(blctl_handle_t handle, const void *msg, size_t msg_len, uint16_t cmd)
+{
+    blctl_env_t *env = handle;
+    char msg_buf[1514];
+    rnm_user_ext_msg_t *rm = (rnm_user_ext_msg_t *)msg_buf;
+
+    if (msg_len > sizeof(msg_buf) - sizeof(*rm))
+        return -1;
+
+    memset(&rm->hdr, 0, sizeof(rm->hdr));
+    rm->hdr.cmd = cmd;
     rm->hdr.session_id = env->sid;
     memcpy(rm->payload, msg, msg_len);
 
@@ -413,22 +458,23 @@ static void *read_thread(void *parm)
         }
 
         if (ret == 0) {
-            rnm_base_msg_t *rm;
+            rnm_base_msg_t *rm = (rnm_base_msg_t *)copy->payload;
 
-            pthread_mutex_lock(&env->wait_slots_lock);
-            for (i = 0; i < WAIT_SLOTS; ++i) {
-                if (!env->wait_slots[i])
-                    continue;
-                wait_env_t *wait = env->wait_slots[i];
-                rm = (rnm_base_msg_t *)copy->payload;
-                if (rm->cmd == wait->cmd_id && rm->msg_id_replying == wait->seq) {
-                    wait->resp = copy;
-                    copy = NULL;
-                    sem_post(&wait->sem);
-                    break;
+            if (rm->flags & RNM_MSG_FLAG_ACK) {
+                pthread_mutex_lock(&env->wait_slots_lock);
+                for (i = 0; i < WAIT_SLOTS; ++i) {
+                    if (!env->wait_slots[i])
+                        continue;
+                    wait_env_t *wait = env->wait_slots[i];
+                    if (rm->cmd == wait->cmd_id && rm->msg_id_replying == wait->seq) {
+                        wait->resp = copy;
+                        copy = NULL;
+                        sem_post(&wait->sem);
+                        break;
+                    }
                 }
+                pthread_mutex_unlock(&env->wait_slots_lock);
             }
-            pthread_mutex_unlock(&env->wait_slots_lock);
             if (copy) {
                 goto wildcard;
             }
@@ -444,6 +490,15 @@ wildcard:
     }
 
     return NULL;
+}
+
+static int blctl_send_hello(blctl_env_t *env)
+{
+    rnm_base_msg_t msg;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = BF1B_CMD_HELLO;
+    return ctl_msg_send(env, CTL_PORT_MSG_TRANSPARENT_HOST2DEVICE, &msg, sizeof(msg));
 }
 
 int blctl_init2(blctl_handle_t *handle, bool daemon)
@@ -503,6 +558,9 @@ int blctl_init2(blctl_handle_t *handle, bool daemon)
     }
 
     *handle = env;
+    if (daemon && blctl_send_hello(env)) {
+        bl_loge("blctl failed to send hello\r\n");
+    }
     return 0;
 
 error:

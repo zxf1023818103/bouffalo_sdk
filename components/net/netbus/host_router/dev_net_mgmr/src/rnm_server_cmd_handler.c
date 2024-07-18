@@ -803,6 +803,18 @@ static chr_t handle_user_ext(rnms_t *rnm, rnm_msg_t *cmd)
     return CMD_HANDLER_RET_NO_ACK;
 }
 
+static chr_t handle_user_ext_respones(rnms_t *rnm, rnm_msg_t *cmd)
+{
+    rnms_handle_user_extension(rnm, cmd, 1);
+    return CMD_HANDLER_RET_NO_ACK;
+}
+
+static chr_t handle_user_ext_no_respones(rnms_t *rnm, rnm_msg_t *cmd)
+{
+    rnms_handle_user_extension(rnm, cmd, 0);
+    return CMD_HANDLER_RET_NO_ACK;
+}
+
 // clang-format off
 static const struct cmd_handler cmd_handler_table[BF1B_CMD_MAX] = {
     [BF1B_CMD_REBOOT]       = {handle_reboot},
@@ -833,6 +845,8 @@ static const struct cmd_handler cmd_handler_table[BF1B_CMD_MAX] = {
     [BF1B_CMD_OTA]             = {handle_ota},
 
     [BF1B_CMD_USER_EXT] = {handle_user_ext},
+    [BF1B_CMD_USER_EXT_RSP] = {handle_user_ext_respones},
+    [BF1B_CMD_USER_EXT_NO_RSP] = {handle_user_ext_no_respones},
 };
 // clang-format on
 

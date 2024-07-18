@@ -9,7 +9,7 @@
 /** x.x.X: Revision of the stack */
 #define HOSTROUTER_VERSION_REVISION   3
 /** For release candidates, this is set to 1..254 */
-#define HOSTROUTER_VERSION_RC         1
+#define HOSTROUTER_VERSION_RC         2
 
 #endif
 

@@ -31,7 +31,7 @@ static bool transparent_proxy_needed(rnm_base_msg_t *cmd)
 {
     bool ret = false;
 
-    if (cmd->flags & RNM_MSG_FLAG_ACK) {
+    if (cmd->flags & (RNM_MSG_FLAG_ACK | RNM_MSG_FLAG_ASYNC)) {
         ret = true;
     }
     return ret;

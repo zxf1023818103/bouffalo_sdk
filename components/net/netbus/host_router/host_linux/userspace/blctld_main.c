@@ -13,6 +13,7 @@
 
 #include "blctl.h"
 #include "../common.h"
+#include "rnm_msg.h"
 #include "blctl_log.h"
 #include "version.h"
 
@@ -29,9 +30,15 @@ static enum {
     EVENT_DISCONNECT,
 } event = EVENT_NONE;
 
+int blctl_handle_one_rnm(blctl_handle_t handle, rnm_base_msg_t *msg,
+        void *data, int len);
+
 static int read_msg()
 {
     int ret = 0;
+    int len;
+    unsigned char *ptr;
+    rnm_base_msg_t *rmsg;
     ctl_port_msg_hdr_t *hdr;
     ctl_port_msg_ip_update_t *ip_msg;
 
@@ -54,6 +61,14 @@ static int read_msg()
         ip_msg = (ctl_port_msg_ip_update_t *)hdr;;
         event = EVENT_IP_UPDATE;
         memcpy(&ip_info, &ip_msg->ip_info, sizeof(ip_msg->ip_info));
+        break;
+    case CTL_PORT_MSG_TRANSPARENT_DEVICE2HOST:
+        rmsg = (rnm_base_msg_t *)hdr->payload;
+        len = hdr->length - sizeof(*hdr);
+        ptr = hdr->payload;
+        ptr += sizeof(*rmsg);
+        len -= sizeof(*rmsg);
+        blctl_handle_one_rnm(ctl, rmsg, ptr, len);
         break;
     default:
         return -1;
