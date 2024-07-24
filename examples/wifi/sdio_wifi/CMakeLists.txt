@@ -28,7 +28,9 @@ endif()
 sdk_add_compile_definitions(-DLP_FW_START_ADDR=0x63026800)
 message(WARNING "lpfw bin load in WRAM(0x63026800)")
 
-target_sources(app PRIVATE
+#sdio
+if(CONFIG_HOSTROUTER)
+    target_sources(app PRIVATE
                    app/src/app_sdiowifi.c
                    app/src/pm/app_pm.c
                    app/src/pm/tickless.c
@@ -36,8 +38,6 @@ target_sources(app PRIVATE
                    app/src/rnm_user_ext/app_rnm_user.c
                    )
 
-#sdio
-if(CONFIG_HOSTROUTER)
     sdk_add_compile_definitions(-DBL_HOSTROUTER_ENABLE)
     sdk_add_compile_definitions(-DBL_SDIO_RX_MAX_PORT_NUM=4)
     sdk_add_compile_definitions(-DBL_DUAL_STACK)
@@ -54,7 +54,13 @@ if(CONFIG_HOSTROUTER)
     if(CONFIG_SDIO_TEST_NO_HOST)
         sdk_add_compile_definitions(-DSDIO_TEST_NO_HOST=1)
     endif()
-
+else()
+    target_sources(app PRIVATE
+                   app/src/app_sdiowifi.c
+                   app/src/pm/app_pm.c
+                   app/src/pm/tickless.c
+                   app/src/sample/app_sample.c
+                   )
 endif()
 
 sdk_set_main_file(main.c)
