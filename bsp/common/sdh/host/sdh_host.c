@@ -1,16 +1,10 @@
 #include "sdh_osal.h"
 #include "sdh_host.h"
 
-#if defined(BL616)
-#include "bl616_glb.h"
-#elif defined(BL808)
-#include "bl808_glb.h"
-#elif defined(BL606P)
-#include "bl606p_glb.h"
-#endif
-
 #include "bflb_sdh.h"
 #include "bflb_clock.h"
+
+#include CHIP_GLB_HEADER
 
 /* log */
 #define DBG_TAG "SDH_HOST"
@@ -81,17 +75,49 @@ int sdh_host_init(struct sdh_host_s *host)
     host->adma2_hw_desc = adam2_hw_desc;
     host->adma2_hw_desc_num = sizeof(adam2_hw_desc) / sizeof(adam2_hw_desc[0]);
 
-    /* reset */
+#if defined(BL616)
+    /* clock en */
     GLB_Set_SDH_CLK(ENABLE, GLB_SDH_CLK_WIFIPLL_96M, 7);
     PERIPHERAL_CLOCK_SDH_ENABLE();
-#if defined(BL616)
+    /* sdh reset */
     GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_EXT_SDH);
-#elif defined(BL808) || defined(BL606P)
-    GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_SDH);
-#endif
-
     host->clk_src_hz = 96000000 / 8;
     host->sdh_div = 1;
+#elif defined(BL616L)
+    /* clock en */
+    GLB_Set_SDH_CLK(ENABLE, GLB_SDH_CLK_WIFIPLL_96M, 7);
+    PERIPHERAL_CLOCK_SDH_ENABLE();
+    /* sdh reset */
+    GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_SDH);
+    host->clk_src_hz = 96000000 / 8;
+    host->sdh_div = 1;
+#elif defined(BL808) || defined(BL606P)
+    /* clock en */
+    GLB_Set_SDH_CLK(ENABLE, GLB_SDH_CLK_WIFIPLL_96M, 7);
+    PERIPHERAL_CLOCK_SDH_ENABLE();
+    /* sdh reset */
+    GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_SDH);
+    host->clk_src_hz = 96000000 / 8;
+    host->sdh_div = 1;
+#elif defined(BL628)
+    /* clock en */
+    bflb_glb_set_sdh_clk(true, GLB_SDH_CLK_WIFIPLL_96M, 0);
+    PERIPHERAL_CLOCK_SDH_ENABLE();
+    /* sdh reset */
+    bflb_glb_ahb_mcu_software_reset(GLB_AHB_MCU_SW_EXT_SDH);
+    host->clk_src_hz = 96000000;
+    host->sdh_div = 1;
+#elif defined(BL616D)
+    /* clock en */
+    GLB_Set_SDH_CLK(true, GLB_SDH_CLK_WIFIPLL_96M, 0);
+    PERIPHERAL_CLOCK_SDH_ENABLE();
+    /* sdh reset */
+    GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_EXT_SDH);
+    host->clk_src_hz = 96000000;
+    host->sdh_div = 1;
+#else
+#error [SDH] unkown chip_ID
+#endif
 
     /* init sdh */
     struct bflb_sdh_config_s cfg = {
@@ -101,10 +127,10 @@ int sdh_host_init(struct sdh_host_s *host)
     };
     bflb_sdh_init(host->sdh_dev, &cfg);
 
+    sdh_set_bus_clock(host, 400 * 1000, NULL);
+
     /* sd bus enable */
     bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_SD_BUS_POWER, true);
-    /* sd bus clock enable */
-    bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_BUS_CLK_EN, true);
 
     return 0;
 }
@@ -120,8 +146,14 @@ int sdh_host_deinit(struct sdh_host_s *host)
     /* disable sdh */
 #if defined(BL616)
     GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_EXT_SDH);
+#elif defined(BL616L)
+    GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_SDH);
 #elif defined(BL606P) || defined(BL808)
     GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_SDH);
+#elif defined(BL628)
+    bflb_glb_ahb_mcu_software_reset(GLB_AHB_MCU_SW_EXT_SDH);
+#elif defined(BL616D)
+    GLB_AHB_MCU_Software_Reset(GLB_AHB_MCU_SW_EXT_SDH);
 #endif
 
     return 0;
@@ -205,7 +237,7 @@ int sdh_host_wait_done(struct sdh_host_s *host, struct sdh_host_transfer_s *tran
 #endif
 
     if (sta & SDH_NORMAL_STA_TRAN_COMP) {
-        bflb_sdh_sta_clr(host->sdh_dev, SDH_NORMAL_STA_CMD_COMP);
+        bflb_sdh_sta_clr(host->sdh_dev, SDH_NORMAL_STA_TRAN_COMP);
         ret = 0;
         goto wait_exit;
     } else {
@@ -240,13 +272,16 @@ int sdh_set_bus_clock(struct sdh_host_s *host, uint32_t freq, uint32_t *actual_f
     int ret;
     uint32_t actual_freq_hz;
 
-    bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_BUS_CLK_EN, false);
+    ret = bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_BUS_CLK_EN, false);
 
-#if defined(BL616) || defined(BL808) || defined(BL606P)
-    uint32_t div = 96000000 / freq;
-    if (96000000 / div > freq) {
-        div += 1;
+    if (freq == 0) {
+        LOG_D("disable sd_clk\r\n");
+        return ret;
     }
+
+#ifdef SDH_STD_V3
+    uint32_t div = (96000000 + freq - 1) / freq;
+
     if (div > 8) {
         div = 8;
     } else if (div == 0) {
@@ -266,18 +301,59 @@ int sdh_set_bus_clock(struct sdh_host_s *host, uint32_t freq, uint32_t *actual_f
 
     bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_BUS_CLK_DIV, 0);
 
+#elif defined(SDH_STD_V3_SMIH)
+    uint32_t div = (host->clk_src_hz + freq - 1) / freq;
+
+    if (div > 2046) {
+        div = 2046;
+    } else if (div < 2) {
+        div = 1;
+    } else {
+        div = (div + 1) & (~0x01);
+    }
+
+    if (div) {
+        actual_freq_hz = host->clk_src_hz / div;
+    } else {
+        actual_freq_hz = host->clk_src_hz;
+    }
+
+    if (actual_freq) {
+        *actual_freq = actual_freq_hz;
+    }
+
+    host->sdh_div = div;
+    bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_BUS_CLK_DIV, div - 1);
 #endif
 
     LOG_D("set bus clk, want %dhz, actual %dhz\r\n", freq, actual_freq_hz);
 
-    ret = bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_BUS_CLK_EN, true);
+#ifdef SDH_STD_V3
+    /* enable high speed mode (uhs: do not care) */
+    if (actual_freq_hz > 25 * 1000 * 1000) {
+        bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_HS_MODE_EN, true);
+    } else {
+        bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_HS_MODE_EN, false);
+    }
+#endif
 
+    ret = bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_SET_BUS_CLK_EN, true);
     return ret;
 }
 
 int sdh_send_active_clk(struct sdh_host_s *host)
 {
+#ifdef SDH_STD_V3
     bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_ACTIVE_CLK_OUT, 80);
+
+#elif defined(SDH_STD_V3_SMIH)
+    uint32_t bus_clk = host->clk_src_hz / host->sdh_div;
+    if (bus_clk > 80 * 1000) {
+        sdh_osal_delay_ms(1);
+    } else {
+        sdh_osal_delay_ms((80 * 1000 + bus_clk - 1) / bus_clk);
+    }
+#endif
     return 0;
 }
 
@@ -288,9 +364,9 @@ int sdh_set_data_timeout_ms(struct sdh_host_s *host, uint16_t timeout_ms, uint32
     uint32_t timeout_cnt;
     uint32_t cnt_vaule;
     uint32_t actual_timeout_ms;
-#if defined(BL616)
+#ifdef SDH_STD_V3
     tmclk = host->clk_src_hz;
-#else
+#elif defined(SDH_STD_V3_SMIH)
     tmclk = host->clk_src_hz;
 #endif
     timeout_cnt = tmclk / 1000 * timeout_ms;
@@ -333,7 +409,9 @@ int sdh_get_signal_status(struct sdh_host_s *host)
 
 int sdh_force_clock(struct sdh_host_s *host, bool en)
 {
+#ifdef SDH_STD_V3
     bflb_sdh_feature_control(host->sdh_dev, SDH_CMD_FORCE_CLK_OUTPUT, en);
+#endif
     return 0;
 }
 

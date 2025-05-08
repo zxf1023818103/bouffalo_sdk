@@ -36,6 +36,8 @@
 
 #include "arch/sys_arch.h"
 
+#define LWIP_NETIF_API           1
+
 /**
  * NO_SYS==1: Provides VERY minimal functionality. Otherwise,
  * use lwIP facilities.
@@ -59,7 +61,6 @@ extern int sys_is_inside_interrupt(void);
 extern int sys_mutex_is_locked(sys_mutex_t *mutex);
 extern int sys_current_is_tcpip(void);
 #endif
-
 
 #define LWIP_ASSERT_CORE_LOCKED()       \
 do {\
@@ -107,7 +108,6 @@ do {\
 /* ---------- Pbuf options ---------- */
 #define PBUF_POOL_SIZE (TCP_WND / TCP_MSS)
 #define PBUF_POOL_BUFSIZE 1524
-#define LWIP_SUPPORT_CUSTOM_PBUF 1
 
 /* ---------- ICMP options ---------- */
 #define LWIP_ICMP 1
@@ -125,19 +125,18 @@ do {\
 /* ---------- DNS options ---------- */
 #define LWIP_DNS                        1
 #define LWIP_DNS_SECURE                 0
-#define LWIP_DNS_SERVER                 0
 
 /* ---------- Multi-cast options ---- */
 #define LWIP_IGMP               1
 #define LWIP_IPV6_MLD           1
-#define LWIP_ND6_RDNSS_MAX_DNS_SERVERS 1
 #define MEMP_NUM_MLD6_GROUP 300
 #define LWIP_MULTICAST_PING 1
 
 #define LWIP_RAW                        1
 
 /* ---------- Statistics options ---------- */
-#define LWIP_STATS 1
+#define LWIP_STATS               1
+#define LWIP_STATS_DISPLAY       0
 
 #define LWIP_TIMEVAL_PRIVATE      0 // use sys/time.h for struct timeval
 
@@ -248,15 +247,23 @@ extern int *__errno(void);
 #define IP_DEBUG         LWIP_DBG_OFF
 #define DHCP_DEBUG       LWIP_DBG_OFF
 #define NAPT_DEBUG       LWIP_DBG_OFF
+#define RAW_DEBUG        LWIP_DBG_OFF
 #define IP6_DEBUG        LWIP_DBG_OFF
 #define DHCP6_DEBUG      LWIP_DBG_OFF
-#define RAW_DEBUG        LWIP_DBG_OFF
 
 /*
    ---------------------------------
    ---------- OS options ----------
    ---------------------------------
 */
+
+#define osPriorityIdle                                   2  //< priority: idle (lowest)
+#define osPriorityLow                                    5  //< priority: low
+#define osPriorityBelowNormal                            10 //< priority: below normal
+#define osPriorityNormal                                 15 //< priority: normal (default)
+#define osPriorityAboveNormal                            20 //< priority: above normal
+#define osPriorityHigh                                   25 //< priority: high
+#define osPriorityRealtime                               29 //< priority: realtime (highest)
 
 #define TCPIP_THREAD_NAME         "TCP/IP"
 #define TCPIP_THREAD_STACKSIZE    2048
@@ -266,14 +273,15 @@ extern int *__errno(void);
 #define DEFAULT_RAW_RECVMBOX_SIZE 100
 #define DEFAULT_ACCEPTMBOX_SIZE   100
 #define DEFAULT_THREAD_STACKSIZE  512
-#define TCPIP_THREAD_PRIO         27
+#define TCPIP_THREAD_PRIO         osPriorityHigh
 
-#define osPriorityRealtime        26  
 
 #define EMAC_DHCP_STACK_SIZE      1024
 
 #define LWIP_RAND() ((u32_t)random())
 #define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) u8_t variable_name[size] __attribute__((aligned(4)))
+
+#define LWIP_DNS_SERVER                                  0
 
 #endif /* LWIP_HDR_LWIPOPTS_H__ */
 

@@ -1213,6 +1213,11 @@ static const ATTR_TCM_CONST_SECTION Flash_Info_t flash_infos[] = {
         //.name="GD_WQ64E_64_1833",
         .cfg = &flash_cfg_GD_Q64E,
     },
+    {
+        .jedec_id = 0x1460c4,
+        //.name="gt25q80_08_33",
+        .cfg = &flash_cfg_Winb_16JV,
+    },
 };
 
 //CLOCK

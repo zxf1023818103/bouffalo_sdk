@@ -108,7 +108,11 @@ static int execute_script()
 
         p = &ip_info.ip4_dns1[0];
         snprintf(enva_buf, sizeof(enva_buf), "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
-        setenv("BF_DNS", enva_buf, 1);
+        setenv("BF_DNS1", enva_buf, 1);
+        
+        p = &ip_info.ip4_dns2[0];
+        snprintf(enva_buf, sizeof(enva_buf), "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+        setenv("BF_DNS2", enva_buf, 1);
         break;
     default:
         return -1;

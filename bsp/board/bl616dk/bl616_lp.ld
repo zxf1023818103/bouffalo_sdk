@@ -18,22 +18,24 @@ StackSize    = 0x1000; /*  4KB */
 HeapMinSize  = 0x1000; /*  4KB */
 psram_heap_min_size = 0x1000;
 __EM_SIZE = DEFINED(btble_controller_init) ? 32K : 0K;
-__LPFW_SIZE = DEFINED(btble_controller_init) ? 38K : 70K;
+__LPFW_SIZE = 30K;
 
 __RFTLV_SIZE_OFFSET = 1K;
 __RFTLV_SIZE_HOLE = 2K;
 __RFTLV_HEAD1_H = (0x46524C42); /* BLRF */
 __RFTLV_HEAD1_L = (0x41524150); /* PAPA */
 
+VerOffset = 0xc00;
+
 MEMORY
 {
     fw_header_memory  (rx)  : ORIGIN = 0xA0000000 - 0x1000, LENGTH = 4K
-    xip_memory  (rx)  : ORIGIN = 0xA0000000, LENGTH = 4M
-    ram_psram  (wxa)   : ORIGIN = 0xA8000000, LENGTH = 4M
-    ram_nocache (!rx) : ORIGIN = 0x22FC0400, LENGTH = 320K - 1K     /* reserved 1k for security */
-    ram_memory  (!rx) : ORIGIN = 0x62FC0400, LENGTH = 320K - 1K     /* reserved 1k for security */
-    ram_wifi  (wxa)   : ORIGIN = 0x23010000, LENGTH = 160K - __EM_SIZE - __LPFW_SIZE
-    lp_dumy_flag (rw) : ORIGIN = 0xC0000000, LENGTH = 0x40
+    xip_memory        (rx)  : ORIGIN = 0xA0000000,  LENGTH = 4M
+    ram_psram         (wxa) : ORIGIN = 0xA8000000,  LENGTH = 4M
+    ram_nocache       (!rx) : ORIGIN = 0x22FC0400,  LENGTH = 320K - 1K  /* reserved 1k for security */
+    ram_memory        (!rx) : ORIGIN = 0x62FC0400,  LENGTH = 320K - 1K  /* reserved 1k for security */
+    ram_wifi_nocache  (wxa) : ORIGIN = 0x23010000,  LENGTH = 160K - __EM_SIZE
+    hbn_memory        (rx)  : ORIGIN = 0x20010000,  LENGTH = 512
 }
 
 SECTIONS
@@ -62,19 +64,22 @@ SECTIONS
         . = ORIGIN(xip_memory) + __RFTLV_SIZE_OFFSET + __RFTLV_SIZE_HOLE;
     } > xip_memory
 
+    .ver : AT(ORIGIN(xip_memory) + VerOffset)
+    {
+		LONG(0x42464c42); /* BLFB */
+		LONG(0x46524556); /* VERF */
+		KEEP (*(.blverinf))
+		LONG(0x42464c42); /* BLFB */
+		LONG(0x46524556); /* VERF */
+		KEEP (*(.verinfo))
+    } > xip_memory
+
     .text :
     {
-        . = ALIGN(32);
+        . = ALIGN(4);
         __text_code_start__ = .;
 
-        *(.text)
-        *(.text.*)
-
-        /* section information for shell */
-        . = ALIGN(32);
-        __fsymtab_start = .;
-        KEEP(*(FSymTab))
-        __fsymtab_end = .;
+        *(EXCLUDE_FILE(*_udivdi3*.o*) .text*)
 
         /* section information for components's version */
         . = ALIGN(4);
@@ -82,16 +87,22 @@ SECTIONS
         KEEP(*(.version.*))
         _version_info_section_end = .;
 
-        . = ALIGN(32);
+        /* section information for shell */
+        . = ALIGN(4);
+        __fsymtab_start = .;
+        KEEP(*(FSymTab))
+        __fsymtab_end = .;
+
+        . = ALIGN(4);
         __vsymtab_start = .;
         KEEP(*(VSymTab))
         __vsymtab_end = .;
 
         /* section information for usb usbh_class_info */
-        . = ALIGN(32);
+        . = ALIGN(4);
         __usbh_class_info_start__ = .;
         KEEP(*(.usbh_class_info))
-        . = ALIGN(32);
+        . = ALIGN(4);
         __usbh_class_info_end__ = .;
 
         /*put .rodata**/
@@ -103,20 +114,37 @@ SECTIONS
                         *bl616_sflash*.o* \
                         *bl616_xip_sflash*.o* \
                         *bl616_ef_ctrl*.o* \
+                        *bl616_ef_cfg*.o* \
+                        *bl616_clock*.o* \
+                        *_clz*.o* \
                         *bl616_romapi_patch*.o* ).rodata*)
 
-        *(.srodata)
-        *(.srodata.*)
+        *(.srodata*)
 
-        /* _dump_sections for coredump.c*/
-        . = ALIGN(32);
+        /* global object for c++ */
+        . = ALIGN(4);
+        __preinit_array_start = .;
+        KEEP (*(.preinit_array))
+        __preinit_array_end = .;
+
+        . = ALIGN(4);
+        __init_array_start = .;
+        KEEP (*(SORT_BY_INIT_PRIORITY(.init_array.*)))
+        KEEP (*(.init_array))
+        __init_array_end = .;
+
+        . = ALIGN(4);
+        *(.gcc_except_table.*)
+
+        /* _dump_sections for bflb_coredump.c*/
+        . = ALIGN(4);
         PROVIDE( _dump_sections = ABSOLUTE(.));
-        LONG(ORIGIN(ram_memory));
-        LONG(LENGTH(ram_memory));
+        LONG(ORIGIN(ram_memory) + (__nocache_noinit_ram_data_end__ - ORIGIN(ram_nocache)));
+        LONG(LENGTH(ram_memory) - (__nocache_noinit_ram_data_end__ - ORIGIN(ram_nocache)));
         LONG(ORIGIN(ram_nocache));
-        LONG(LENGTH(ram_nocache));
-        LONG(ORIGIN(ram_wifi));
-        LONG(LENGTH(ram_wifi));
+        LONG(__nocache_noinit_ram_data_end__ - ORIGIN(ram_nocache));
+        LONG(ORIGIN(ram_wifi_nocache));
+        LONG(LENGTH(ram_wifi_nocache));
         /*
         LONG(ORIGIN(ram_psram));
         LONG(LENGTH(ram_psram));
@@ -125,51 +153,59 @@ SECTIONS
         LONG(__EM_SIZE);
         LONG(0xffffffff);
         LONG(0xffffffff);
-        /* _dump_sections for coredump.c*/
+        /* _dump_sections for bl_coredump.c*/
 
-        . = ALIGN(32);
+        . = ALIGN(4);
         __text_code_end__ = .;
     } > xip_memory
 
-    . = ALIGN(32);
-    __nocache_ram_load_addr = .;
-
-    .nocache_ram_region  : AT (__nocache_ram_load_addr)
+    .build_id :
     {
-        . = ALIGN(32);
-        __nocache_ram_data_start__ = .;
+        . = ALIGN(4);
+        elf_build_id = ABSOLUTE(.) + 16;
+        *(.note.gnu.build-id)
+        . = ALIGN(4);
+    } > xip_memory
+
+    .nocache_ram_region  :
+    {
+        __nocache_ram_load_addr = LOADADDR(.nocache_ram_region);
+        __nocache_ram_data_start__ = ADDR(.nocache_ram_region);
+        __nocache_ram_data_end__ = ADDR(.nocache_ram_region) + SIZEOF(.nocache_ram_region);
+
+        . = ALIGN(4);
 
         *(.nocache_ram)
 
-        . = ALIGN(32);
-        __nocache_ram_data_end__ = .;
-    } > ram_nocache
+        . = ALIGN(4);
+    } > ram_nocache AT > xip_memory
 
     .nocache_noinit_ram_region (NOLOAD) :
     {
-        . = ALIGN(32);
-        __nocache_noinit_ram_data_start__ = .;
+        __nocache_noinit_ram_data_start__ = ADDR(.nocache_noinit_ram_region);
+        __nocache_noinit_ram_data_end__ = ADDR(.nocache_noinit_ram_region) + SIZEOF(.nocache_noinit_ram_region);
 
+        . = ALIGN(4);
         *(.nocache_noinit_ram)
         *(.noncacheable)
 
-        . = ALIGN(32);
-        __nocache_noinit_ram_data_end__ = .;
+        . = ALIGN(4);
     } > ram_nocache
 
-    /* Skip the nocache region */ 
+    /* Skip the nocache region */
     .ram_skip_nocache_region (NOLOAD) :
     {
         . += (__nocache_noinit_ram_data_end__ - ORIGIN(ram_nocache));
+        . = ALIGN(32);
     } > ram_memory
 
-    __itcm_load_addr = __nocache_ram_load_addr + SIZEOF(.nocache_ram_region);
-
-    .itcm_region : AT (__itcm_load_addr)
+    .itcm_region :
     {
-        . = ALIGN(32);
-        __tcm_code_start__ = .;
+        __itcm_load_addr = LOADADDR(.itcm_region);
+        __tcm_code_start__ = ADDR(.itcm_region);
+        __tcm_code_end__ = ADDR(.itcm_region) + SIZEOF(.itcm_region);
 
+        . = ALIGN(4);
         *(.tcm_code.*)
         *(.tcm_const.*)
         *(.sclock_rlt_code.*)
@@ -183,33 +219,40 @@ SECTIONS
         *bl616_sflash*.o*(.rodata*)
         *bl616_xip_sflash*.o*(.rodata*)
         *bl616_ef_ctrl*.o*(.rodata*)
+        *bl616_ef_cfg*.o*(.rodata*)
+        *bl616_clock*.o*(.rodata*)
+        *_clz*.o*(.rodata*)
         *bl616_romapi_patch*.o*(.rodata*)
 
-        . = ALIGN(32);
-        __tcm_code_end__ = .;
-    } > ram_memory
+        *_udivdi3*.o*(.text*)
 
-    __dtcm_load_addr = __itcm_load_addr + SIZEOF(.itcm_region);
+        . = ALIGN(4);
+    } > ram_memory AT > xip_memory
 
-    .dtcm_region : AT (__dtcm_load_addr)
+    .dtcm_region :
     {
-        . = ALIGN(32);
+        __dtcm_load_addr = LOADADDR(.dtcm_region);
+        __tcm_data_start__ = ADDR(.dtcm_region);
+        __tcm_data_end__ = ADDR(.dtcm_region) + SIZEOF(.dtcm_region);
+
+        . = ALIGN(4);
         __tcm_data_start__ = .;
 
         *(.tcm_data)
         /* *finger_print.o(.data*) */
 
-        . = ALIGN(32);
+        . = ALIGN(4);
         __tcm_data_end__ = .;
-    } > ram_memory
-
-    __ram_load_addr = __dtcm_load_addr + SIZEOF(.dtcm_region);
+    } > ram_memory AT > xip_memory
 
     /* Data section */
-    RAM_DATA : AT (__ram_load_addr)
+    RAM_DATA :
     {
-        . = ALIGN(32);
-        __ram_data_start__ = .;
+        __ram_load_addr = LOADADDR(RAM_DATA);
+        __ram_data_start__ = ADDR(RAM_DATA);
+        __ram_data_end__ = ADDR(RAM_DATA) + SIZEOF(RAM_DATA);
+
+        . = ALIGN(4);
 
         PROVIDE( __global_pointer$ = . + 0x800 );
 
@@ -220,7 +263,7 @@ SECTIONS
         *(.sdata2)
         *(.sdata2.*)
 
-        . = ALIGN(32);
+        . = ALIGN(8);
         *(._k_queue.static.*)
         *(._k_sem.static.*)
         *(._k_mutex.static.*)
@@ -234,33 +277,48 @@ SECTIONS
         KEEP(*(SORT_BY_NAME("._bt_l2cap_br_fixed_chan.static.*")))
         _bt_l2cap_br_fixed_chan_list_end = .;
 
-        . = ALIGN(32);
+        . = ALIGN(4);
         __bflog_tags_start__ = .;
         *(.bflog_tags_array)
-        . = ALIGN(32);
+        . = ALIGN(4);
         __bflog_tags_end__ = .;
-        __ram_data_end__ = .;
-    } > ram_memory
+    } > ram_memory AT > xip_memory
 
-    __psram_load_addr = (__ram_load_addr + SIZEOF (RAM_DATA));
-
-    .psram_data_region : AT (__psram_load_addr)
+    .hbn_ram_region :
     {
+        __hbn_load_addr = LOADADDR(.hbn_ram_region);
+        __hbn_ram_start__ = ADDR(.hbn_ram_region);
+        __hbn_ram_end__ = ADDR(.hbn_ram_region) + SIZEOF(.hbn_ram_region);
+
         . = ALIGN(32);
-        __psram_data_start__ = .;
+        KEEP(*(.hbn_code.*))
+        KEEP(*(.hbn_data.*))
+        . = ALIGN(32);
+
+    } > hbn_memory  AT > xip_memory
+
+    .psram_data_region :
+    {
+        __psram_load_addr = LOADADDR(.psram_data_region);
+        __psram_data_start__ = ADDR(.psram_data_region);
+        __psram_data_end__ = ADDR(.psram_data_region) + SIZEOF(.psram_data_region);
+
+        . = ALIGN(32);
+
+        KEEP(*(.psram_code*))
+
+        . = ALIGN(32);
 
         KEEP(*(.psram_data*))
 
         . = ALIGN(32);
-        __psram_data_end__ = .;
-    } > ram_psram
+    } > ram_psram AT > xip_memory
 
     __etext_final = (__psram_load_addr + SIZEOF (.psram_data_region));
+    __edata_etext_final = ALIGN(__etext_final, 1024);
     ASSERT(__etext_final <= ORIGIN(xip_memory) + LENGTH(xip_memory), "code memory overflow")
 
-    __lpfw_load_addr = __etext_final;
-
-    .lpfw : AT (__lpfw_load_addr)
+    .lpfw : 
     {
         /* For DMA Burst copy lpfw binary from flash to ram */
         . = ALIGN(32);
@@ -268,12 +326,12 @@ SECTIONS
         . = ALIGN(32);
         LONG(0x5746504C); /* LPFW */
         . = ALIGN(32);
-    } > lp_dumy_flag
 
-    __lpfw_start = (__lpfw_load_addr + SIZEOF (.lpfw));
-    ASSERT(((ABSOLUTE(__lpfw_start) & 0x1F) == 0), "LPFW not aligned 32!")
+        __lpfw_load_addr = .;
+    } > xip_memory
 
-    PROVIDE(__binary_length = __lpfw_start - ORIGIN(xip_memory));
+    ASSERT(((ABSOLUTE(__lpfw_load_addr) & 0x1F) == 0), "LPFW not aligned 32!")
+    PROVIDE(__binary_length = __lpfw_load_addr - ORIGIN(xip_memory));
 
     .stack (NOLOAD):
     {
@@ -290,25 +348,30 @@ SECTIONS
 
     .bss (NOLOAD) :
     {
-        . = ALIGN(32);
+        . = ALIGN(4);
         __bss_start__ = .;
 
         *(.bss*)
         *(.sbss*)
         *(COMMON)
 
-        . = ALIGN(32);
+        . = ALIGN(4);
+        PROVIDE( __lp_mon_start = ADDR(.lp_mon) );
+        PROVIDE( __lp_mon_end = ADDR(.lp_mon) + SIZEOF(.lp_mon) );
+        *(.lp_mon_ctx)
+
+        . = ALIGN(4);
         __bss_end__ = .;
     } > ram_memory
 
     .noinit_data (NOLOAD) :
     {
-        . = ALIGN(32);
+        . = ALIGN(4);
         __noinit_data_start__ = .;
 
         *(.noinit_data*)
 
-        . = ALIGN(32);
+        . = ALIGN(4);
         __noinit_data_end__ = .;
     } > ram_memory
 
@@ -328,13 +391,13 @@ SECTIONS
 
     .psram_noinit_data (NOLOAD):
     {
-        . = ALIGN(32);
+        . = ALIGN(4);
         __psram_noinit_data_start__ = .;
 
         KEEP(*(.psram_noinit*))
         KEEP(*(.img_buf*))
 
-        . = ALIGN(32);
+        . = ALIGN(4);
         __psram_noinit_data_end__ = .;
     } > ram_psram
 
@@ -349,37 +412,45 @@ SECTIONS
 
     __psram_limit = ORIGIN(ram_psram) + LENGTH(ram_psram);
     ASSERT(__psram_limit - __psram_heap_base >= psram_heap_min_size, "psram heap region overflow")
- 
-    .wifibss (NOLOAD) :
-    {
-      PROVIDE( __wifi_bss_start = ADDR(.wifibss) );
-      PROVIDE( __wifi_bss_end = ADDR(.wifibss) + SIZEOF(.wifibss) );
-      _sshram = . ;
-      *(SHAREDRAMIPC)
-      *(SHAREDRAM)
-      _eshram = 0x23038000 - __EM_SIZE;
-      *ipc_shared.o(COMMON)
-      *sdu_shared.o(COMMON)
-      *hal_desc.o(COMMON)
-      *txl_buffer_shared.o(COMMON)
-      *txl_frame_shared.o(COMMON)
-      *scan_shared.o(COMMON)
-      *scanu_shared.o(COMMON)
-      *mfp_bip.o(COMMON)
-      *me_mic.o(COMMON)
-      *(.wifi_ram*)
-      . = ALIGN(16);
-    } > ram_wifi
 
-    .lp_mon (NOLOAD)   :
+    .wram.nocache_noinit_lpfw_share (NOLOAD) :
     {
-        PROVIDE( __lp_mon_start = ADDR(.lp_mon) );
-        PROVIDE( __lp_mon_end = ADDR(.lp_mon) + SIZEOF(.lp_mon) );
-        *(.lp_mon_ctx)
-    } > ram_memory
+        __lpfw_share_start = ADDR(.wram.nocache_noinit_lpfw_share);
+        __lpfw_share_end = ADDR(.wram.nocache_noinit_lpfw_share) + __LPFW_SIZE;
+
+        _sshram = . ;
+
+        *(.lpfw_share_nocache_noinit*)
+
+        __lpfw_share_used = .;
+
+        . = (__lpfw_share_used < __lpfw_share_end) ? __lpfw_share_end : .;
+
+    } > ram_wifi_nocache
+ 
+    .wram.nocache_noinit (NOLOAD) :
+    {
+        PROVIDE( __wifi_bss_start = ADDR(.wram.nocache_noinit) );
+        PROVIDE( __wifi_bss_end = ADDR(.wram.nocache_noinit) + SIZEOF(.wram.nocache_noinit) );
+
+        *(SHAREDRAMIPC)
+        *(SHAREDRAM)
+        _eshram = .;
+        *ipc_shared.o(COMMON)
+        *sdu_shared.o(COMMON)
+        *hal_desc.o(COMMON)
+        *txl_buffer_shared.o(COMMON)
+        *txl_frame_shared.o(COMMON)
+        *scan_shared.o(COMMON)
+        *scanu_shared.o(COMMON)
+        *mfp_bip.o(COMMON)
+        *me_mic.o(COMMON)
+        *(.wifi_ram*)
+        . = ALIGN(16);
+    } > ram_wifi_nocache
 
     PROVIDE( _heap_wifi_start = . );
-    PROVIDE( _heap_wifi_size = ORIGIN(ram_wifi) + LENGTH(ram_wifi) - _heap_wifi_start );
+    PROVIDE( _heap_wifi_size = ORIGIN(ram_wifi_nocache) + LENGTH(ram_wifi_nocache) - _heap_wifi_start );
     PROVIDE(__LD_CONFIG_EM_SEL = __EM_SIZE);
 }
 

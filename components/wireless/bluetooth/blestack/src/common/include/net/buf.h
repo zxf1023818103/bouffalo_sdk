@@ -81,7 +81,9 @@ enum
 	SERVER,
 	DATA,
 #endif /* CONFIG_AUTO_PTS */
-    
+#if defined(CONFIG_DYNAMIC_GATTS)
+	GATTSERVER,
+#endif /* CONFIG_AUTO_PTS */   
 };
 #endif
 /** @brief Simple network buffer representation.

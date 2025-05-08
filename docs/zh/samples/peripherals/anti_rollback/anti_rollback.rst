@@ -36,9 +36,9 @@ anti-rollback相关API介绍
 
 1. 代码示例在bouffalo_sdk/examples/peripherals/anti_rollback路径下。
 
-2. 通过hal_get_app_version_from_efuse()可以读取efuse中记录的anti-rollback版本号。默认情况下，efuse中记录的anti-rollback版本号为0，此时任意版本的应用固件都可以启动。
+2. 通过bflb_get_app_version_from_efuse()可以读取efuse中记录的anti-rollback版本号。默认情况下，efuse中记录的anti-rollback版本号为0，此时任意版本的应用固件都可以启动。
 
-3. 通过hal_set_app_version_to_efuse()可以配置efuse记录的anti-rollback版本号，当该版本号被设置为非0值时，
+3. 通过bflb_set_app_version_to_efuse()可以配置efuse记录的anti-rollback版本号，当该版本号被设置为非0值时，
 任何版本号小于该值的应用固件都将无法启动。anti-rollback版本号最大支持到128，即取值范围是0~128。
 
 4. anti-rollback配置结构体如下图所示：

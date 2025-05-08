@@ -521,6 +521,10 @@ void msp_kernel_sched_resume()
 
 void *msp_zalloc(unsigned int size)
 {
+    if(size == 0) {
+        return NULL;
+    }
+    
     void* ptr = pvPortMalloc(size);
     if(ptr) {
         bzero(ptr,size);
@@ -532,7 +536,12 @@ void *msp_zalloc(unsigned int size)
 
 void *msp_malloc(unsigned int size)
 {
+    if(size == 0) {
+        return NULL;
+    }
+
     void *p = NULL;
+
     p = pvPortMalloc(size);
 
     return p;

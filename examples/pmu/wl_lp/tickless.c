@@ -11,7 +11,7 @@
 #include "bflb_irq.h"
 
 #include "wifi_mgmr_ext.h"
-#include "export/rwnx.h"
+#include "rwnx.h"
 
 // #include "time_statics.h"
 
@@ -28,8 +28,8 @@ extern void rwnx_ps_pause(void);
 extern void rtos_wifi_task_resume(bool isr);
 
 int pds_wakeup_overhead = 0;
-uint64_t ulLowPowerTimeEnterFunction;
-uint64_t ulLowPowerTimeAfterSleep;
+static uint64_t ulLowPowerTimeEnterFunction;
+static uint64_t ulLowPowerTimeAfterSleep;
 
 int debug_abort_tickless = 0;
 
@@ -196,15 +196,11 @@ __enter_disconnected:
     rwnxl_regs_save_ops();
 
     /* copy lpfw */
-    extern unsigned char __lpfw_start[];
-    /* Set em_sel */
-    //GLB_Set_EM_Sel(GLB_WRAM128KB_EM32KB);
-    do {
-        uintptr_t dst_addr = LP_FW_START_ADDR;
-        uint32_t lpfw_size = *((uint32_t *)__lpfw_start - 7);
-        memcpy((void *)dst_addr, __lpfw_start, lpfw_size);
-        lpfw_cfg.lpfw_copy = 1;
-    } while (0);
+    bl_lpfw_ram_load();
+    /* disable copy */
+    lpfw_cfg.lpfw_copy = 0;
+    /* disable verify */
+    lpfw_cfg.lpfw_verify = 0;
 
 #if 0
     if(lpfw_cfg.rtc_timeout_us){

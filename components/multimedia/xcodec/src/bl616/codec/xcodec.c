@@ -195,7 +195,9 @@ xcodec_error_t xcodec_input_config(xcodec_input_t *ch, xcodec_input_config_t *co
     rx_context.maxcount = config->buffer_size / (config->period + sizeof(aui_segment_t));
     //cfg.positive_pin = config->positive_pin;
     //cfg.negative_pin = config->negative_pin;
-#if !CONFIG_CODEC_USE_I2S_RX 
+#if CONFIG_CODEC_USE_I2S_RX || CONFIG_CODEC_USE_ES8388 
+    msp_i2s_device_init(config->sample_rate);
+#else
     msp_codec_pin_cfg_t pin_cfg = msp_codec_pin_config();
     /* means unused pin */
     if (pin_cfg.input_positive_pin != 255) {
@@ -456,7 +458,7 @@ xcodec_error_t xcodec_output_config(xcodec_output_t *ch, xcodec_output_config_t 
     cfg.per_node_size = config->period;
     tx_context.maxcount = config->buffer_size / (config->period + sizeof(auo_segment_t));
     //cfg.pa_pin = config->pa_pin;
-#if CONFIG_CODEC_USE_I2S_TX
+#if CONFIG_CODEC_USE_I2S_TX || CONFIG_CODEC_USE_ES8388
     msp_i2s_device_init(config->sample_rate);
 #else
     msp_codec_pin_cfg_t pin_cfg = msp_codec_pin_config();

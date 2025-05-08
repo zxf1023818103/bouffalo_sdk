@@ -99,4 +99,7 @@ void platform_hook_prevent_sleep(enum PSM_EVENT event, uint8_t prevent) __attrib
 */
 void platform_hook_tcpip_rx(void) __attribute__((weak));
 
+#ifdef CFG_LPM
+uint8_t platform_get_chip_version(void);
+#endif
 #endif

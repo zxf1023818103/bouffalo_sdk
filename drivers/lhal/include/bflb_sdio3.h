@@ -20,6 +20,12 @@
 #ifndef SDIO3_FUNC_QUEUE_NUM_MAX
 #define SDIO3_FUNC_QUEUE_NUM_MAX (8)
 #endif
+#ifndef SDIO3_DMA1_MODE_ENABLE
+#define SDIO3_DMA1_MODE_ENABLE (0)
+#endif
+#ifndef SDIO3_DMA1_PAGA_SIZE
+#define SDIO3_DMA1_PAGA_SIZE (32 * 1024) /* min:4K */
+#endif
 /**
   * @}
   */
@@ -40,13 +46,25 @@
 #define SDIO3_CUSTOM_REG_FUNC_QUEUE_MAX_DEPTH (14) /* queue max depth, 1 Byte */
 /* func other info def */
 #define SDIO3_CUSTOM_REG_FUNC_BLOCK_SIZE      (32) /* block size, 2 Byte */
-#define SDIO3_CUSTOM_REG_FUNC_HOST_READY      (34) /* host ready, 1 Byte */
+#define SDIO3_CUSTOM_REG_FUNC_CARD_READY      (34) /* card ready, 1 Byte */
+#define SDIO3_CUSTOM_REG_FUNC_HOST_READY      (35) /* host ready, 1 Byte */
+#define SDIO3_CUSTOM_REG_FUNC_STA_FLAG        (36) /* sdio system status, 1 Byte */
 /* func queue elem def */
 #define SDIO3_CUSTOM_REG_FUNC_DNLD_QUEUE      (64) /* 64~95, 2*16 Byte */
 #define SDIO3_CUSTOM_REG_FUNC_UPLD_QUEUE      (96) /* 96~127, 2*16 Byte */
 /* user usage area */
 #define SDIO3_CUSTOM_REG_USER_OFFSET          (384) /* user,  384~511, 128 Byte */
 #define SDIO3_CUSTOM_REG_USER_SIZE            (128)
+/**
+  * @}
+  */
+
+/** @defgroup SDIO2_STA_FLAG sdio system status and mode type.
+  * @{
+  */
+#define SDIO3_STA_FLAG_SDIO_BOOT              (1 << 7)
+#define SDIO3_STA_FLAG_APP_RUN                (1 << 6)
+#define SDIO3_STA_FLAG_RD_LEN_COMPRESS_SUP    (1 << 5)
 /**
   * @}
   */
@@ -100,13 +118,18 @@
 /** @defgroup SDIO3_CMD sdio3 feature_control cmd.
   * @{
   */
-#define SDIO3_CMD_INIT_READY                  (0) /* card init ready */
-#define SDIO3_CMD_GET_CARD_STA                (1) /* get card status (Resp_1) */
-#define SDIO3_CMD_GET_BUS_WIDTH               (2) /* get bus width */
-#define SDIO3_CMD_GET_FUNC_HOST_READY         (3) /* get func1/func2 ready sta */
-#define SDIO3_CMD_GET_FUNC_BLK_SIZE           (4) /* get func1/func2 block size */
-#define SDIO3_CMD_GET_DNLD_MAX_SIZE           (5) /* get func1/func2 dnld max size */
-#define SDIO3_CMD_GET_UPLD_MAX_SIZE           (6) /* get func1/func2 upld max size */
+#define SDIO3_CMD_INIT_READY                  (0)  /* card init ready */
+#define SDIO3_CMD_GET_CARD_STA                (1)  /* get card status (Resp_1) */
+#define SDIO3_CMD_GET_BUS_WIDTH               (2)  /* get bus width */
+#define SDIO3_CMD_SET_FUNC_CARD_READY         (3)  /* set func1/func2 card ready sta */
+#define SDIO3_CMD_GET_FUNC_HOST_READY         (4)  /* get func1/func2 host ready sta */
+#define SDIO3_CMD_GET_FUNC_BLK_SIZE           (5)  /* get func1/func2 block size */
+#define SDIO3_CMD_GET_DNLD_MAX_SIZE           (6)  /* get func1/func2 dnld max size */
+#define SDIO3_CMD_GET_UPLD_MAX_SIZE           (7)  /* get func1/func2 upld max size */
+#define SDIO3_CMD_GET_DNLD_QUEUE_WAIT_NUM     (8)  /*  */
+#define SDIO3_CMD_GET_DNLD_QUEUE_AVAILABLE    (9)  /*  */
+#define SDIO3_CMD_GET_UPLD_QUEUE_WAIT_NUM     (10)  /*  */
+#define SDIO3_CMD_GET_UPLD_QUEUE_AVAILABLE    (11) /*  */
 /**
   * @}
   */
@@ -183,6 +206,10 @@ typedef struct
 
 typedef void (*bflb_sdio3_irq_cb_t)(void *arg, uint32_t irq_event, bflb_sdio3_trans_desc_t *trans_desc);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* init */
 int bflb_sdio3_init(struct bflb_device_s *dev, struct bflb_sdio3_config_s *cfg);
 int bflb_sdio3_deinit(struct bflb_device_s *dev);
@@ -191,20 +218,11 @@ int bflb_sdio3_deinit(struct bflb_device_s *dev);
 int bflb_sdio3_custom_reg_read(struct bflb_device_s *dev, uint16_t reg_offset, void *buff, uint16_t len);
 int bflb_sdio3_custom_reg_write(struct bflb_device_s *dev, uint16_t reg_offset, void *buff, uint16_t len);
 
-/* get trans max size */
-int bflb_sdio2_get_upld_max_size(struct bflb_device_s *dev);
-int bflb_sdio2_get_dnld_max_size(struct bflb_device_s *dev);
-
 /* attach dnld/upld buff */
 int bflb_sdio3_dnld_push(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *trans_desc);
 int bflb_sdio3_upld_push(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *trans_desc);
 
-/* get dnld/upld info */
-int bflb_sdio3_dnld_get_waiting(struct bflb_device_s *dev, uint8_t fn);
-int bflb_sdio3_dnld_get_available(struct bflb_device_s *dev, uint8_t fn);
-int bflb_sdio3_upld_get_waiting(struct bflb_device_s *dev, uint8_t fn);
-int bflb_sdio3_upld_get_available(struct bflb_device_s *dev, uint8_t fn);
-/* pop dnld/upld queue, can only be used after reset. */
+/* pop dnld/upld queue, can only be used after reset, and before CMD_INIT_READY. */
 int bflb_sdio3_dnld_pop(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *trans_desc, uint8_t func);
 int bflb_sdio3_upld_pop(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *trans_desc, uint8_t func);
 
@@ -213,6 +231,10 @@ int bflb_sdio3_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg
 
 /* isr callback attach */
 int bflb_sdio3_irq_attach(struct bflb_device_s *dev, bflb_sdio3_irq_cb_t irq_event_cb, void *arg);
+
+#ifdef __cplusplus
+}
+#endif
 
 /**
   * @}

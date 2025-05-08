@@ -44,6 +44,9 @@ typedef enum {
 } FactoryCredentialElementTypeId_t;
 
 #define TO_LITTLE_ENDION_UINT32(x) ((x[0] << 24) | (x[1] << 16) | (x[2] << 8) | (x[3]))
+#ifndef MFD_MAX_ELEMENT_NUM
+#define MFD_MAX_ELEMENT_NUM ELEMENT_TYPE_NUM
+#endif
 
 typedef struct {
 
@@ -62,12 +65,10 @@ typedef struct FactoryData
 {
     uint32_t                    ptOffset;
     uint32_t                    ptSize;
-    FactoryDataElement_t        item[ELEMENT_TYPE_NUM];
+    FactoryDataElement_t        item[MFD_MAX_ELEMENT_NUM];
 } FactoryData_t;
 
 FactoryData_t g_mfd_var;
-
-extern bool efuse_slot_decrypt(uint8_t *p, uint32_t len, uint8_t *pIv);
 
 #define IS_FLASH_ADDR(x) ((uint32_t)MFD_XIP_BASE <= (uint32_t)x && (uint32_t)x < (uint32_t)MFD_XIP_END )
 
@@ -119,7 +120,10 @@ static bool mfd_parsePartitionData(uint32_t size, uint8_t *pData, uint8_t *pIv)
 
 static bool mfd_parseData(void) 
 {
-    uint32_t mfd_decrypt_buf[2048 / sizeof(uint32_t)];
+#ifndef BL_MFD_DECRYPT_BUF_LEN
+#define BL_MFD_DECRYPT_BUF_LEN 512
+#endif
+    uint32_t mfd_decrypt_buf[BL_MFD_DECRYPT_BUF_LEN / sizeof(uint32_t)];
 
     MFD_RUNNING_MEMORY_CHECK();
 
@@ -146,34 +150,39 @@ static bool mfd_parseData(void)
     /** readout size for cipher data and plaintext data  */
     memcpy(&cipher_size, (void *)xipaddr_base, sizeof(cipher_size));
     memcpy(&plaintext_size, (void *)(xipaddr_base + 4 + cipher_size + 4), sizeof(cipher_size));
-    if (0 == cipher_size || 0 == plaintext_size || (cipher_size + plaintext_size) > 4096) {
-        return false;;
+    if (cipher_size + plaintext_size < 8 || (cipher_size + plaintext_size) > 4096) {
+        return false;
     }
 
     /** verifications crc values on cipher data and plaintext data */
-    crc_value = BFLB_Soft_CRC32((uint8_t *)(xipaddr_base + 4), cipher_size);
-    if (crc_value != *(uint32_t *)(xipaddr_base + 4 + cipher_size)) {
-        return false;;
+    if (cipher_size) {
+        crc_value = BFLB_Soft_CRC32((uint8_t *)(xipaddr_base + 4), cipher_size);
+        if (crc_value != *(uint32_t *)(xipaddr_base + 4 + cipher_size)) {
+            return false;
+        }
+        if (cipher_size > BL_MFD_DECRYPT_BUF_LEN) {
+            return false;
+        }
     }
+
     crc_value = BFLB_Soft_CRC32((uint8_t *)((xipaddr_base + 4 + cipher_size + 4) + 4), plaintext_size);
     memcpy(&mfd_crc, (uint8_t *) (xipaddr_base + 4 + cipher_size + 4 + 4 + plaintext_size), sizeof(uint32_t));
     if (crc_value != mfd_crc) {
-        return false;;
+        return false;
     }
 
     /** parse plaintext data first and get efuse aes IV */
     if (false == mfd_parsePartitionData(plaintext_size, (uint8_t *)((xipaddr_base + 4 + cipher_size + 4) + 4), (uint8_t *)iv)) {
-        return false;;
+        return false;
     }
 
-    memcpy(mfd_decrypt_buf, (uint8_t *)(xipaddr_base + 4), cipher_size);
-
-    if (false == efuse_slot_decrypt((uint8_t *)mfd_decrypt_buf, cipher_size, (uint8_t *)iv)) {
-        return false;;
-    }
-
-    if (false == mfd_parsePartitionData(cipher_size, (uint8_t *)mfd_decrypt_buf, (uint8_t *)iv)) {
-        return false;;
+    if (cipher_size) {
+        if (false == bl_mfd_decrypt((uint8_t *)(xipaddr_base + 4), cipher_size, (uint8_t *)mfd_decrypt_buf, iv)) {
+            return false;
+        }
+        if (false == mfd_parsePartitionData(cipher_size, (uint8_t *)mfd_decrypt_buf, (uint8_t *)iv)) {
+            return false;
+        }
     }
 
     return true;
@@ -391,4 +400,9 @@ int mfd_getHardwareVersion(uint8_t * buf, uint32_t size)
 int mfd_getHardwareVersionString(char * buf, uint32_t size)
 {
     return mfd_copyDataItem(ELEMENT_TYPE_HARDWARE_VERSION_STRING,(uint8_t*)buf,size);
+}
+
+int mfd_getElementById(int16_t id, uint8_t * buf, uint32_t size)
+{
+    return mfd_copyDataItem(id, buf, size);
 }

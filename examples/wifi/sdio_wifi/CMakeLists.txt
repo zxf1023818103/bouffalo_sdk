@@ -19,48 +19,52 @@ sdk_add_compile_definitions(-DBL_RA_EN=1)
 sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_SOC_DEFAULT=10)
 sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_AON_DEFAULT=10)
 
+if (CONFIG_LPM)
+    sdk_add_compile_definitions(-DCFG_LPM=1)
+    sdk_add_compile_definitions(-DRC_EZ23Q4=1)
+    sdk_add_compile_definitions(-DRC_EZ23Q4_EDCA=1)
+    sdk_add_compile_definitions(-DTX_RETRY_ENABLE=1)
+endif()
+
 if (CONFIG_DCDC_ENABLE)
     sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_RT_DEFAULT=8)
 else()
     sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_RT_DEFAULT=10)
 endif()
 
-sdk_add_compile_definitions(-DLP_FW_START_ADDR=0x63026800)
-message(WARNING "lpfw bin load in WRAM(0x63026800)")
-
-#sdio
-if(CONFIG_HOSTROUTER)
-    target_sources(app PRIVATE
+target_sources(app PRIVATE
                    app/src/app_sdiowifi.c
                    app/src/pm/app_pm.c
                    app/src/pm/tickless.c
                    app/src/sample/app_sample.c
-                   app/src/rnm_user_ext/app_rnm_user.c
                    )
 
+#sdio
+if(CONFIG_HOSTROUTER)
     sdk_add_compile_definitions(-DBL_HOSTROUTER_ENABLE)
     sdk_add_compile_definitions(-DBL_SDIO_RX_MAX_PORT_NUM=4)
     sdk_add_compile_definitions(-DBL_DUAL_STACK)
     #sdk_add_compile_definitions(-DCONFIG_SDIO_HIGH_PERFORMANCE)
-        
+
     if(CONFIG_SDIOWIFI_HEARTBEAT)
         sdk_add_compile_definitions(-DSDIOWIFI_HEARTBEAT=1)
     endif()
-        
+
     if(CONFIG_SDIOWIFI_TTY)
         sdk_add_compile_definitions(-DSDIOWIFI_TTY=1)
     endif()
-        
+
     if(CONFIG_SDIO_TEST_NO_HOST)
         sdk_add_compile_definitions(-DSDIO_TEST_NO_HOST=1)
     endif()
-else()
+
+    if(CONFIG_DUAL_ETH)
+        sdk_add_compile_definitions(-DCFG_DUAL_ETH=1)
+    endif()
+
     target_sources(app PRIVATE
-                   app/src/app_sdiowifi.c
-                   app/src/pm/app_pm.c
-                   app/src/pm/tickless.c
-                   app/src/sample/app_sample.c
-                   )
+                    app/src/rnm_user_ext/app_rnm_user.c
+                    )
 endif()
 
 sdk_set_main_file(main.c)

@@ -18,6 +18,12 @@
 #define WL_API_RMEM_ADDR    0x20010600
 #endif
 
+#if defined(BL616L)
+#include "bl616l_glb.h"
+#include "bl616l_pds.h"
+#include "wl_api.h"
+#endif
+
 #if defined(BL808)
 #include "bl808_glb.h"
 #endif 
@@ -160,6 +166,8 @@ __attribute__((weak)) void btblecontroller_rf_restore()
   wl_cfg = wl_cfg_get((uint8_t *)WL_API_RMEM_ADDR);
   wl_cfg->mode = WL_API_MODE_BZ;
   wl_lp_init((uint8_t*)WL_API_RMEM_ADDR,2412);
+  #elif defined(BL616L)
+  //616L_todo, Not find definition of struct wl_cfg_t in bl616L fpga
   #endif
 }
 
@@ -177,8 +185,13 @@ __attribute__((weak)) int btblecontroller_efuse_read_mac(uint8_t mac[6])
     status = bl_efuse_read_mac(tmp);
     #endif
     #else
+    #if defined(BL616)
     status = mfg_media_read_macaddr_with_lock(tmp, 1);
+    #elif defined(BL616L)
+    //616L_todo
+    return 1;
     #endif
+    #endif //(CFG_IOT_SDK)
     mac[0] = tmp[0];
     mac[1] = tmp[1];
     mac[2] = tmp[2];
@@ -204,17 +217,34 @@ __attribute__((weak)) void btblecontroller_pds_trim_rc32m()
     PDS_Trim_RC32M();
 }
 
-__attribute__((weak)) int btblecontroller_printf(const char *fmt, ...)
-{
-    return 0;
-}
-
 __attribute__((weak)) uint8_t btblecontrolller_get_chip_version()
 {
     extern void bflb_efuse_get_device_info(bflb_efuse_device_info_type *device_info);
     bflb_efuse_device_info_type device_info;
     bflb_efuse_get_device_info(&device_info);
     return device_info.version;
+}
+#endif
+
+__attribute__((weak)) int btblecontroller_printf(const char *fmt, ...)
+{
+    #if defined(CFG_IOT_SDK)
+    extern void vprint(const char *fmt, va_list argp);
+    va_list argp;
+    va_start(argp, fmt);
+    vprint(fmt, argp);
+    va_end(argp);
+    #endif
+
+    return 0;
+}
+
+
+#if defined(BL702L) || defined(BL616)
+__attribute__((weak)) void btblecontroller_sys_reset(void)
+{
+    __disable_irq();
+    GLB_SW_POR_Reset();
 }
 #endif
 

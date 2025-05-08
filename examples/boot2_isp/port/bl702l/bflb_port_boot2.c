@@ -86,7 +86,7 @@ void hal_boot2_get_efuse_cfg(boot2_efuse_hw_config *efuse_cfg)
     bflb_efuse_read_secure_boot((uint8_t *)efuse_cfg->sign, (uint8_t *)efuse_cfg->encrypted);
     /* Get hash:aes key slot 0 and slot1*/
     //EF_Ctrl_Read_AES_Key(0, (uint32_t *)efuse_cfg->pk_hash_cpu0, 8);
-    bflb_ef_ctrl_read_direct(NULL, EF_DATA_EF_KEY_SLOT_0_W0_OFFSET, efuse_cfg->pk_hash_cpu0, 8, 1);
+    bflb_ef_ctrl_read_direct(NULL, EF_DATA_EF_KEY_SLOT_0_W0_OFFSET, efuse_cfg->pk_hash_cpu[0], 8, 1);
     //EF_Ctrl_Read_Chip_ID(efuse_cfg->chip_id);
     bflb_efuse_get_chipid(efuse_cfg->chip_id);
     /* Get HBN check sign config */
@@ -213,12 +213,10 @@ void ATTR_TCM_SECTION hal_boot2_sboot_finish(void)
 *******************************************************************************/
 void hal_boot2_uart_gpio_init(void)
 {
-    GLB_GPIO_Type gpios[] = { GPIO_PIN_14, GPIO_PIN_15 };
-
-    GLB_GPIO_Func_Init(GPIO_FUN_UART, gpios, 2);
-
-    GLB_UART_Fun_Sel((GPIO_PIN_14 % 4), GLB_UART_SIG_FUN_UART0_TXD); //  GPIO_FUN_UART0_TX
-    GLB_UART_Fun_Sel((GPIO_PIN_15 % 4), GLB_UART_SIG_FUN_UART0_RXD);
+    struct bflb_device_s *gpio;
+    gpio = bflb_device_get_by_name("gpio");
+    bflb_gpio_uart_init(gpio, GPIO_PIN_14, GPIO_UART_FUNC_UART0_TX);
+    bflb_gpio_uart_init(gpio, GPIO_PIN_15, GPIO_UART_FUNC_UART0_RX);
 }
 
 /****************************************************************************/ /**
@@ -556,136 +554,29 @@ uint32_t hal_boot2_get_bootheader_offset(void)
     return 0x00;
 }
 
+
 /****************************************************************************/ /**
- * @brief  get anti rollback version
+ * @brief  config reboot option
  *
- * @param  return version
+ * @param  None
  *
- * @return
+ * @return None
  *
 *******************************************************************************/
-int32_t hal_get_app_version_from_efuse(uint8_t *version)
+void hal_reboot_config(hal_reboot_cfg_t rbot)
 {
-    uint32_t anti_rollback_version_low = 0;
-    uint32_t anti_rollback_version_high = 0;
-
-    if(NULL == version){
-        return -1;
+    switch (rbot) {
+        case HAL_REBOOT_AS_BOOTPIN:
+            HBN_Set_User_Boot_Config(0);
+            break;
+        case HAL_REBOOT_FROM_INTERFACE:
+            HBN_Set_User_Boot_Config(1);
+            break;
+        case HAL_REBOOT_FROM_MEDIA:
+            HBN_Set_User_Boot_Config(2);
+            break;
+        default:
+            HBN_Set_User_Boot_Config(0);
+            break;
     }
-
-    /* load efuse data to efuse register anyway */
-    EF_Ctrl_Load_Efuse_R0();
-
-    uint8_t anti_rollback_en = (*(uint32_t *)(EF_DATA_BASE + 0x74) >> 13) & 0x1;
-    if(!anti_rollback_en){
-        return -1;
-    }
-
-    /* get real version from efuse */
-    anti_rollback_version_low = *(uint32_t *)(EF_DATA_BASE + 0x04);
-    anti_rollback_version_high = *(uint32_t *)(EF_DATA_BASE + 0x08);
-
-    /* version_real[63:32] case */
-    if(anti_rollback_version_high){
-        *version = 64 - __builtin_clz(anti_rollback_version_high);
-        return SUCCESS;
-    }
-
-    /* version_real[31:0] case */
-    if(anti_rollback_version_low){
-        *version = 32 - __builtin_clz(anti_rollback_version_low);
-        return SUCCESS;
-    }
-
-    *version = 0;
-    return SUCCESS;
-}
-
-int32_t hal_set_app_version_to_efuse(uint8_t version)
-{
-    uint8_t version_old = 0;
-
-    if(version > 64){
-        return -1;
-    }
-
-    if(hal_get_app_version_from_efuse(&version_old) != SUCCESS){
-        return -2;
-    }
-
-    if(version_old >= version){
-        return -3;
-    }
-
-    /* program anti-rollback enable bit and application version */
-    *(uint32_t *)(EF_DATA_BASE + 0x74) = 0x1 << 13;
-    if(version > 32){
-        *(uint32_t *)(EF_DATA_BASE + 0x08) = 0x1 << (version - 32 - 1);
-    }else{
-        *(uint32_t *)(EF_DATA_BASE + 0x04) = 0x1 << (version - 1);
-    }
-    EF_Ctrl_Program_Direct_R0(0, NULL, 0);
-    while(SET == EF_Ctrl_Busy());
-
-    /* load efuse data to efuse register again */
-    EF_Ctrl_Load_Efuse_R0();
-
-    return SUCCESS;
-}
-
-int32_t hal_get_boot2_version_from_efuse(uint8_t *version)
-{
-    uint32_t anti_rollback_version = 0;
-
-    if(NULL == version){
-        return -1;
-    }
-
-    /* load efuse data to efuse register anyway */
-    EF_Ctrl_Load_Efuse_R0();
-
-    uint8_t anti_rollback_en = (*(uint32_t *)(EF_DATA_BASE + 0x74) >> 13) & 0x1;
-    if(!anti_rollback_en){
-        return -1;
-    }
-
-    /* get real version from efuse */
-    anti_rollback_version = *(uint32_t *)(EF_DATA_BASE + 0x4C);
-
-    /* version_real[31:0] case */
-    if(anti_rollback_version){
-        *version = 32 - __builtin_clz(anti_rollback_version);
-        return SUCCESS;
-    }
-
-    *version = 0;
-    return SUCCESS;
-}
-
-int32_t hal_set_boot2_version_to_efuse(uint8_t version)
-{
-    uint8_t version_old = 0;
-
-    if(version > 32){
-        return -1;
-    }
-
-    if(hal_get_boot2_version_from_efuse(&version_old) != SUCCESS){
-        return -2;
-    }
-
-    if(version_old >= version){
-        return -3;
-    }
-
-    /* program anti-rollback enable bit and boot2 version */
-    *(uint32_t *)(EF_DATA_BASE + 0x74) = 0x1 << 13;
-    *(uint32_t *)(EF_DATA_BASE + 0x4C) = 0x1 << (version - 1);
-    EF_Ctrl_Program_Direct_R0(0, NULL, 0);
-    while(SET == EF_Ctrl_Busy());
-
-    /* load efuse data to efuse register again */
-    EF_Ctrl_Load_Efuse_R0();
-
-    return SUCCESS;
 }

@@ -29,7 +29,7 @@
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
 
-#include "export/bl_fw_api.h"
+#include "bl_fw_api.h"
 #include "wifi_mgmr_ext.h"
 #include "wifi_mgmr.h"
 
@@ -163,7 +163,7 @@ int main(void)
 
     tcpip_init(NULL, NULL);
     wifi_start_firmware_task();
-#if CONFIG_CODEC_USE_I2S_RX || CONFIG_CODEC_USE_I2S_TX
+#if CONFIG_CODEC_USE_I2S_RX || CONFIG_CODEC_USE_I2S_TX || CONFIG_CODEC_USE_ES8388
     extern msp_i2s_port_init(void);
     msp_i2s_port_init();
 #endif

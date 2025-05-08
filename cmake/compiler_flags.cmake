@@ -11,6 +11,7 @@ sdk_add_compile_options(
 -Wall
 -Wchar-subscripts
 # -Wformat
+-Wpointer-arith
 -Wno-format
 -Wundef
 -Wuninitialized
@@ -67,5 +68,5 @@ sdk_add_compile_options(${CONFIG_GCC_OPTIMISE_LEVEL})
 endif()
 
 if(WIN32)
-sdk_add_compile_definitions(-D_WIN32)
+sdk_add_compile_definitions(-D_WIN32_DEBUG_PATH)
 endif()

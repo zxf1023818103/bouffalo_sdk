@@ -26,42 +26,6 @@
 #define SDIO3_CMD53_RW_FUNC_MASK       (0x03 << SDIO3_CMD53_RW_FUNC_SHIFT)
 #define SDIO3_CMD53_RW_DIR_MASK        (1 << 31)
 
-/* glb reg base def */
-#ifndef GLB_BASE
-#if defined(BL628)
-#define GLB_BASE ((uint32_t)0x20000000)
-#endif
-#endif
-/* glb sdio cfg def */
-#define GLB_SDIO_CFG0_OFFSET         (0x440) /* sdio_cfg0 */
-#define GLB_SDIO_CFG1_OFFSET         (0x444) /* sdio_cfg1 */
-#define GLB_SDIO_CFG2_OFFSET         (0x448) /* sdio_cfg2 */
-/* 0x440 : sdio_cfg0 */
-#define GLB_REG_SDIO_INT_SYS_DIS     (1 << 0U)
-#define GLB_REG_SD_RST_SD_DIS        (1 << 1U)
-#define GLB_REG_SDU_RST_SD_DIS       (1 << 2U)
-#define GLB_REG_SYS_RST_SD_EN        (1 << 3U)
-#define GLB_SDU_CMDRCVD              (1 << 12U)
-#define GLB_SDU_CLK_SWITCH_OK        (1 << 13U)
-#define GLB_SD_PWUP                  (1 << 14U)
-#define GLB_SDU_DBG_SHIFT            (16U)
-#define GLB_SDU_DBG_MASK             (0xffff << GLB_SDU_DBG_SHIFT)
-/* 0x444 : sdio_cfg1 */
-#define GLB_CR_SMID_VDD_PAD_EN       (1 << 0U)
-#define GLB_CR_SMID_VDD_SW_RSTN      (1 << 1U)
-#define GLB_CR_SMID_SD_VER_SEL       (1 << 2U)
-#define GLB_CR_SMID_SD_MMC_SEL_SHIFT (3U)
-#define GLB_CR_SMID_SD_MMC_SEL_MASK  (0x3 << GLB_CR_SMID_SD_MMC_SEL_SHIFT)
-#define GLB_CR_SMID_MMC_VER_SEL      (1 << 5U)
-#define GLB_CR_SMID_ESD_CMD_ACCEPT   (1 << 6U)
-#define GLB_ST_SMID_SLEEP_ON         (1 << 14U)
-#define GLB_ST_SMID_OD_PP            (1 << 15U)
-#define GLB_ST_SMID_DSR_SHIFT        (16U)
-#define GLB_ST_SMID_DSR_MASK         (0xffff << GLB_ST_SMID_DSR_SHIFT)
-/* 0x448 : sdio_cfg2 */
-#define GLB_CR_SMID_OCR_SHIFT        (0U)
-#define GLB_CR_SMID_OCR_MASK         (0x7fffffff << GLB_CR_SMID_OCR_SHIFT)
-
 /* isr */
 static void bflb_sdio3_isr(int irq, void *arg);
 
@@ -101,10 +65,10 @@ struct bflb_sdio3_queue_ctrl_s {
     (&ctrl.upld_queue_desc[func - 1][SDIO3_GET_UPLD_IN(ctrl, func)])
 
 /* isr event callback */
-void *sdio3_irq_arg;
-bflb_sdio3_irq_cb_t sdio3_irq_event_cb;
+static void *sdio3_irq_arg = NULL;
+static bflb_sdio3_irq_cb_t sdio3_irq_event_cb = NULL;
 /* sdio3 ctrl */
-static struct bflb_sdio3_queue_ctrl_s sdio3_ctrl;
+static struct bflb_sdio3_queue_ctrl_s sdio3_ctrl = { 0 };
 /* ADMA hw desc, must be nocache */
 static ATTR_NOCACHE_RAM_SECTION struct bflb_sdio3_adma_hw_desc_s adma_hw_desc_buff[1];
 
@@ -162,7 +126,7 @@ int bflb_sdio3_init(struct bflb_device_s *dev, struct bflb_sdio3_config_s *cfg)
     /* disable power ctrl */
     regval &= ~SDIO3_SMPC;
     /* disable 8bit */
-    regval &= ~SDIO3_SBS;
+    regval &= ~SDIO3_S8B;
     /* disable direct cmd52 */
     regval &= ~SDIO3_SDC;
     /* enable multiple block */
@@ -207,10 +171,25 @@ int bflb_sdio3_init(struct bflb_device_s *dev, struct bflb_sdio3_config_s *cfg)
     }
     putreg32(regval, reg_base + SDIO3_IOREADY_REGISTER_OFFSET);
 
+#if SDIO3_DMA1_MODE_ENABLE
+    /* dma1 mode */
+    regval = getreg32(reg_base + SDIO3_CONTROL2_REGISTER_OFFSET);
+    regval &= ~SDIO3_ADMA_ENABLE;
+    putreg32(regval, reg_base + SDIO3_CONTROL2_REGISTER_OFFSET);
+
+    /* dma1 page size cfg */
+    regval = getreg32(reg_base + SDIO3_DMA1_CONTROL_REGISTER_OFFSET);
+    regval &= ~SDIO3_DMA1_BUFFER_SIZE_MASK;
+    uint8_t size_bit = __builtin_ctz((SDIO3_DMA1_PAGA_SIZE >> 12));
+    regval |= (size_bit << 1);
+    putreg32(regval, reg_base + SDIO3_DMA1_CONTROL_REGISTER_OFFSET);
+
+#else
     /* adma mode */
     regval = getreg32(reg_base + SDIO3_CONTROL2_REGISTER_OFFSET);
     regval |= SDIO3_ADMA_ENABLE;
     putreg32(regval, reg_base + SDIO3_CONTROL2_REGISTER_OFFSET);
+#endif
 
     /* clean all interrupt_status */
     putreg32(0xffffffff, reg_base + SDIO3_INTERRUPT_STATUS_REGISTER_OFFSET);
@@ -221,6 +200,9 @@ int bflb_sdio3_init(struct bflb_device_s *dev, struct bflb_sdio3_config_s *cfg)
              | SDIO3_CMD11_INTERRUPT | SDIO3_CMD11_CLK_START | SDIO3_CMD11_CLK_STOP                       /* vol switch int */
              | SDIO3_CMD0_CMD52_SOFT_RESET | SDIO3_FUNCTION1_RESET | SDIO3_FUNCTION2_RESET                /* host reset int */
              | SDIO3_FUNCTIONX_CRC_END_ERROR_INTERRUPT | SDIO3_FUNCTIONX_ABORT_INTERRUPT;                 /* crc/abort int */
+#if SDIO3_DMA1_MODE_ENABLE
+    regval |= SDIO3_DMA1_INTERRUPT; /* DMA1 page int */
+#endif
     putreg32(regval, reg_base + SDIO3_INTERRUPT_SIGNAL_ENABLE_REGISTER_OFFSET);
     /* enable interrupt_signal (sta2) */
     regval = SDIO3_ADMA_ERROR_INTERRUPT; /* adma err int */
@@ -234,16 +216,22 @@ int bflb_sdio3_init(struct bflb_device_s *dev, struct bflb_sdio3_config_s *cfg)
     uint8_t queue_num = SDIO3_FUNC_QUEUE_NUM_MAX;
     bflb_sdio3_custom_reg_write(dev, SDIO3_CUSTOM_REG_FUNC_OFFSET(1) + SDIO3_CUSTOM_REG_FUNC_QUEUE_MAX_DEPTH, &queue_num, 1);
     bflb_sdio3_custom_reg_write(dev, SDIO3_CUSTOM_REG_FUNC_OFFSET(2) + SDIO3_CUSTOM_REG_FUNC_QUEUE_MAX_DEPTH, &queue_num, 1);
+    /* write status flag */
+    for (uint8_t i = 1; i <= SDIO3_FUNC_NUM_MAX; i++) {
+        regval = 0;
+        bflb_sdio3_custom_reg_read(dev, SDIO3_CUSTOM_REG_FUNC_OFFSET(i) + SDIO3_CUSTOM_REG_FUNC_STA_FLAG, &regval, 1);
+        regval |= SDIO3_STA_FLAG_RD_LEN_COMPRESS_SUP;
+#if defined(BOOTROM)
+        regval |= SDIO3_STA_FLAG_SDIO_BOOT;
+#else
+        regval |= SDIO3_STA_FLAG_APP_RUN;
+#endif
+        bflb_sdio3_custom_reg_write(dev, SDIO3_CUSTOM_REG_FUNC_OFFSET(i) + SDIO3_CUSTOM_REG_FUNC_STA_FLAG, &regval, 1);
+    }
 
     bflb_irq_attach(dev->irq_num, bflb_sdio3_isr, dev);
     bflb_irq_enable(dev->irq_num);
 
-#if 0
-    /* card ready */
-    regval = getreg32(reg_base + SDIO3_CONTROL_REGISTER_OFFSET);
-    regval |= SDIO3_CARD_INIT_DONE;
-    putreg32(regval, reg_base + SDIO3_CONTROL_REGISTER_OFFSET);
-#endif
     return 0;
 }
 
@@ -251,19 +239,11 @@ int bflb_sdio3_deinit(struct bflb_device_s *dev)
 {
     bflb_irq_disable(dev->irq_num);
 
-#if 1
-    /* hw reset */
-    uint32_t regval;
-    regval = getreg32(GLB_BASE + GLB_SDIO_CFG1_OFFSET);
-    regval &= ~GLB_CR_SMID_VDD_SW_RSTN;
-    putreg32(regval, GLB_BASE + GLB_SDIO_CFG1_OFFSET);
-    arch_delay_us(2);
-    regval |= GLB_CR_SMID_VDD_SW_RSTN;
-    putreg32(regval, GLB_BASE + GLB_SDIO_CFG1_OFFSET);
+#if 0
 #endif
 
     /* reset sdio3_ctrl */
-    memset(&sdio3_ctrl, 0, sizeof(sdio3_ctrl));
+    arch_memset((void *)&sdio3_ctrl, 0, sizeof(sdio3_ctrl));
 
     /* clear custom reg */
     uint8_t buf[8] = { 0 };
@@ -274,6 +254,24 @@ int bflb_sdio3_deinit(struct bflb_device_s *dev)
     return 0;
 }
 
+#if SDIO3_DMA1_MODE_ENABLE
+/* dma1 init */
+static int bflb_sdio3_dma1_start(struct bflb_device_s *dev, uint32_t addr, uint16_t len)
+{
+    uint32_t reg_base = dev->reg_base;
+    uint32_t regval;
+
+    /* address */
+    putreg32(addr, reg_base + SDIO3_DMA1_ADDRESS_REGISTER_OFFSET);
+
+    /* start */
+    regval = getreg32(reg_base + SDIO3_DMA1_CONTROL_REGISTER_OFFSET);
+    regval |= SDIO3_DMA1_ADDRESS_VALID;
+    putreg32(regval, reg_base + SDIO3_DMA1_CONTROL_REGISTER_OFFSET);
+
+    return 0;
+}
+#else
 /* adma desc init */
 static int bflb_sdio3_adma_start(struct bflb_device_s *dev, struct bflb_sdio3_adma_hw_desc_s *hw_desc, uint32_t addr, uint16_t len)
 {
@@ -296,6 +294,7 @@ static int bflb_sdio3_adma_start(struct bflb_device_s *dev, struct bflb_sdio3_ad
 
     return 0;
 }
+#endif
 
 static int bflb_sdio3_adma_stop(struct bflb_device_s *dev)
 {
@@ -463,7 +462,7 @@ int bflb_sdio3_upld_push(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *tra
 /* pop dnld queue, can only be used after reset. */
 int bflb_sdio3_dnld_pop(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *trans_desc, uint8_t func)
 {
-    memset(trans_desc, 0, sizeof(bflb_sdio3_trans_desc_t));
+    arch_memset(trans_desc, 0, sizeof(bflb_sdio3_trans_desc_t));
 
     /* lock */
     uintptr_t flag = bflb_irq_save();
@@ -492,7 +491,7 @@ int bflb_sdio3_dnld_pop(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *tran
 /* pop upld queue, can only be used after reset. */
 int bflb_sdio3_upld_pop(struct bflb_device_s *dev, bflb_sdio3_trans_desc_t *trans_desc, uint8_t func)
 {
-    memset(trans_desc, 0, sizeof(bflb_sdio3_trans_desc_t));
+    arch_memset(trans_desc, 0, sizeof(bflb_sdio3_trans_desc_t));
 
     /* lock */
     uintptr_t flag = bflb_irq_save();
@@ -558,6 +557,13 @@ int bflb_sdio3_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg
             }
             break;
 
+        case SDIO3_CMD_SET_FUNC_CARD_READY:
+            /* get func1/func2 ready sta, arg: func num */
+            regval = 1;
+            bflb_sdio3_custom_reg_write(dev, SDIO3_CUSTOM_REG_FUNC_OFFSET(arg) + SDIO3_CUSTOM_REG_FUNC_CARD_READY, &regval, 1);
+            ret = (uint8_t)regval;
+            break;
+
         case SDIO3_CMD_GET_FUNC_HOST_READY:
             /* get func1/func2 ready sta, arg: func num */
             regval = 0;
@@ -584,6 +590,22 @@ int bflb_sdio3_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg
             regval = 0;
             bflb_sdio3_custom_reg_read(dev, SDIO3_CUSTOM_REG_FUNC_OFFSET(arg) + SDIO3_CUSTOM_REG_FUNC_UPLD_MAX_SIZE, &regval, 2);
             ret = (uint16_t)regval;
+            break;
+
+        case SDIO3_CMD_GET_DNLD_QUEUE_WAIT_NUM:
+            ret = SDIO3_GET_DNLD_NUM(sdio3_ctrl, arg);
+            break;
+
+        case SDIO3_CMD_GET_DNLD_QUEUE_AVAILABLE:
+            ret = SDIO3_FUNC_QUEUE_NUM_MAX - SDIO3_GET_DNLD_NUM(sdio3_ctrl, arg);
+            break;
+
+        case SDIO3_CMD_GET_UPLD_QUEUE_WAIT_NUM:
+            ret = SDIO3_GET_UPLD_NUM(sdio3_ctrl, arg);
+            break;
+
+        case SDIO3_CMD_GET_UPLD_QUEUE_AVAILABLE:
+            ret = SDIO3_FUNC_QUEUE_NUM_MAX - SDIO3_GET_UPLD_NUM(sdio3_ctrl, arg);
             break;
 
         default:
@@ -749,10 +771,52 @@ static void bflb_sdio3_isr_cb_tran_start(struct bflb_device_s *dev, uint32_t int
         }
     }
 
+#if SDIO3_DMA1_MODE_ENABLE
+    /* dma1 init */
+    SDIO3_DRV_DBG("dma1 start %p\r\n", sdio3_ctrl.trans_desc->buff);
+    bflb_sdio3_dma1_start(dev, (uint32_t)(uintptr_t)sdio3_ctrl.trans_desc->buff, blk_size * blk_cnt);
+#else
     /* adma init */
     SDIO3_DRV_DBG("adma start %p\r\n", sdio3_ctrl.trans_desc->buff);
     bflb_sdio3_adma_start(dev, adma_hw_desc_buff, (uint32_t)(uintptr_t)sdio3_ctrl.trans_desc->buff, blk_size * blk_cnt);
+#endif
 }
+
+#if SDIO3_DMA1_MODE_ENABLE
+/* isr callback: dma1 page int */
+static void bflb_sdio3_isr_cb_dma1_page(struct bflb_device_s *dev, uint32_t int_sta1)
+{
+    uint32_t reg_base = dev->reg_base;
+    uint32_t regval;
+
+    /* clr int */
+    putreg32(SDIO3_DMA1_INTERRUPT, reg_base + SDIO3_INTERRUPT_STATUS_REGISTER_OFFSET);
+
+    if (sdio3_ctrl.tran_sta == SDIO3_TRAN_STA_BUSY_DNLD || sdio3_ctrl.tran_sta == SDIO3_TRAN_STA_BUSY_UPLD) {
+        bflb_sdio3_trans_desc_t *trans_desc = sdio3_ctrl.trans_desc;
+        regval = getreg32(reg_base + SDIO3_DMA1_ADDRESS_REGISTER_OFFSET);
+        if (regval % SDIO3_DMA1_PAGA_SIZE) {
+            regval += SDIO3_DMA1_PAGA_SIZE - ((uint32_t)(uintptr_t)trans_desc->buff % SDIO3_DMA1_PAGA_SIZE);
+        } else {
+            regval += SDIO3_DMA1_PAGA_SIZE;
+        }
+
+        /* address */
+        putreg32(regval, reg_base + SDIO3_DMA1_ADDRESS_REGISTER_OFFSET);
+        SDIO3_DRV_DBG("dma1 page addr: 0x%08X\r\n", regval);
+
+        /* start */
+        regval = getreg32(reg_base + SDIO3_DMA1_CONTROL_REGISTER_OFFSET);
+        regval |= SDIO3_DMA1_ADDRESS_VALID;
+        putreg32(regval, reg_base + SDIO3_DMA1_CONTROL_REGISTER_OFFSET);
+    } else {
+        SDIO3_DRV_DBG("dma1 err\r\n");
+        if (sdio3_irq_event_cb != NULL) {
+            sdio3_irq_event_cb(sdio3_irq_arg, SDIO3_IRQ_EVENT_ERR_UNKNOW, NULL);
+        }
+    }
+}
+#endif
 
 /* isr callback: func1/func2  dnld/upld transfer complete int */
 static void bflb_sdio3_isr_cb_tran_complete(struct bflb_device_s *dev, uint32_t int_sta1)
@@ -763,6 +827,10 @@ static void bflb_sdio3_isr_cb_tran_complete(struct bflb_device_s *dev, uint32_t 
     /* clr int */
     putreg32(SDIO3_TRANSFER_COMPLETE_INTERRUPT, reg_base + SDIO3_INTERRUPT_STATUS_REGISTER_OFFSET);
     SDIO3_DRV_DBG("trans complete\r\n");
+
+#if SDIO3_DMA1_MODE_ENABLE
+    putreg32(SDIO3_DMA1_INTERRUPT, reg_base + SDIO3_INTERRUPT_STATUS_REGISTER_OFFSET);
+#endif
 
     if (sdio3_ctrl.tran_sta == SDIO3_TRAN_STA_BUSY_DNLD) {
         /* dnld complete, update dnld queue */
@@ -792,7 +860,7 @@ static void bflb_sdio3_isr_cb_tran_complete(struct bflb_device_s *dev, uint32_t 
         bflb_sdio3_trans_desc_t comp_desc = *sdio3_ctrl.trans_desc;
         /* update custom reg */
         uint8_t func = comp_desc.func;
-        uint8_t upld_out = sdio3_ctrl.dnld_queue_out[func - 1];
+        uint8_t upld_out = sdio3_ctrl.upld_queue_out[func - 1];
         bflb_sdio3_custom_reg_write(dev, SDIO3_CUSTOM_REG_FUNC_OFFSET(func) + SDIO3_CUSTOM_REG_FUNC_UPLD_QUEUE_OUT, &upld_out, 1);
         /* update transfer status */
         sdio3_ctrl.tran_sta = SDIO3_TRAN_STA_READY;
@@ -986,6 +1054,14 @@ static void bflb_sdio3_isr(int irq, void *arg)
         bflb_sdio3_isr_cb_tran_complete(dev, int_sta);
         return;
     }
+
+#if SDIO3_DMA1_MODE_ENABLE
+    /* dma1 page int */
+    if (int_sta & SDIO3_DMA1_INTERRUPT) {
+        bflb_sdio3_isr_cb_dma1_page(dev, int_sta);
+        return;
+    }
+#endif
 
     /* 4. func1/func2  dnld/upld abort int */
     if (int_sta & SDIO3_FUNCTIONX_ABORT_INTERRUPT) {

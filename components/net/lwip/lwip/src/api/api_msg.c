@@ -541,8 +541,25 @@ setup_tcp(struct netconn *conn)
   tcp_arg(pcb, conn);
   tcp_recv(pcb, recv_tcp);
   tcp_sent(pcb, sent_tcp);
-  tcp_poll(pcb, poll_tcp, NETCONN_TCP_POLL_INTERVAL);
+  /* comment 'tcp_poll(pcb, poll_tcp, NETCONN_TCP_POLL_INTERVAL);'
+     Dynamic registration for TCP writting, lwip_netconn_do_close_internal function
+     has already unregistered for abnormal close situations, and re-registered for
+     unfinished close.
+   */
   tcp_err(pcb, err_tcp);
+}
+
+int lwip_netconn_is_tcp_polling(struct netconn *conn)
+{
+  struct tcp_pcb *pcb;
+  int polling = 0;
+
+  if(conn) {
+    pcb = conn->pcb.tcp;
+    polling = pcb->pollinterval > 0 ? 1 :0;
+  }
+
+  return polling;
 }
 
 /**
@@ -1809,6 +1826,9 @@ err_mem:
     conn->current_msg->err = err;
     conn->current_msg = NULL;
     conn->state = NETCONN_NONE;
+    /* After conn->state transfer NETCONN_NONE because of write finish, unregister.
+     */
+    tcp_poll(conn->pcb.tcp, NULL, 0);
 #if LWIP_TCPIP_CORE_LOCKING
     if (delayed)
 #endif
@@ -1845,6 +1865,12 @@ lwip_netconn_do_write(void *m)
         err = ERR_INPROGRESS;
       } else if (msg->conn->pcb.tcp != NULL) {
         msg->conn->state = NETCONN_WRITE;
+        /* After conn->state transfer NETCONN_WRITE because of write more, register.
+           The following lwip_netconn_do_writemore will unregister it.
+         */
+        tcp_poll(msg->conn->pcb.tcp, poll_tcp, NETCONN_TCP_POLL_INTERVAL);
+        void tcp_timer_needed(void);
+        tcp_timer_needed();
         /* set all the variables used by lwip_netconn_do_writemore */
         LWIP_ASSERT("already writing or closing", msg->conn->current_msg == NULL);
         LWIP_ASSERT("msg->msg.w.len != 0", msg->msg.w.len != 0);

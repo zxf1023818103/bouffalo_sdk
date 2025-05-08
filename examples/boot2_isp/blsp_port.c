@@ -64,7 +64,11 @@ char ver_name[5] __attribute__ ((section(".verinfo"))) = "boot2";
 char git_commit[41] __attribute__ ((section(".verinfo"))) = GIT_COMMIT;
 char time_info[30] __attribute__ ((section(".verinfo"))) = COMPILE_TIME;
 const blverinf_t boot2_ver __attribute__ ((section(".blverinf"))) = {
+#if BOOT2_ANTI_ROLLBACK_VER
+    .anti_rollback = BOOT2_ANTI_ROLLBACK_VER,
+#else
     .anti_rollback = 0,
+#endif
     .x = BFLB_BOOT2_VER[0] - 0x30,
     .y = BFLB_BOOT2_VER[2] - 0x30,
     .z = BFLB_BOOT2_VER[4] - 0x30,

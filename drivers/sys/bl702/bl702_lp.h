@@ -216,13 +216,12 @@ typedef struct {
     uint8_t io_10_ie;
     uint8_t io_11_ie;
     uint8_t io_12_ie;
-    uint8_t io_13_ie;
 
     /* wake up mask */
     uint64_t io_wakeup_unmask; /* bit[0:31] --> GPIO0 ~ GPIO31 */
 
     /* trigger mode */
-    uint8_t io_9_13_pds_trig_mode;   /* use @ref BL_LP_PDS_IO_TRIG */
+    uint8_t io_9_12_pds_trig_mode;   /* use @ref BL_LP_PDS_IO_TRIG */
 
 } bl_lp_io_cfg_t;
 

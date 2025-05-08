@@ -8,8 +8,6 @@ sdk_add_include_directories(.)
 
 target_sources(app PRIVATE http_server.c http_led.c)
 
-sdk_add_compile_definitions(-D${CONFIG_ETHERNET_PHY})
-
 sdk_set_main_file(main.c)
 
 project(lwip_http_server)

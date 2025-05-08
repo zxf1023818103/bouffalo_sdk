@@ -1,5 +1,6 @@
 
 #include <lwip/tcpip.h>
+#include <lwip/dns.h>
 #include <openthread_port.h>
 #include <openthread_br.h>
 #include <shell.h>
@@ -18,6 +19,9 @@ static void cmd_ifconfig(int argc, char **argv)
             printf("\tIPv4 address: %s\r\n", ip4addr_ntoa(netif_ip4_addr(netif)));
             printf("\tIPv4 mask: %s\r\n", ip4addr_ntoa(netif_ip4_netmask(netif)));
             printf("\tGateway address: %s\r\n", ip4addr_ntoa(netif_ip4_gw(netif)));
+            for (int i = 0; i < DNS_MAX_SERVERS; i ++) {
+                printf("\tDNS server %d: %s\r\n", i, ipaddr_ntoa(dns_getserver(i)));
+            }
         }
 
         for (uint32_t i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i ++ ) {
@@ -71,4 +75,17 @@ static void cmd_ifconfig(int argc, char **argv)
     }
 }
 
+static void cmd_stats_display(int argc, char **argv) 
+{
+    stats_display();
+}
+
+static int cmd_abort(int argc, char **argv)
+{
+    abort();
+    return 0;
+}
+
 SHELL_CMD_EXPORT_ALIAS(cmd_ifconfig, ifconfig, show information on infra network interface.);
+SHELL_CMD_EXPORT_ALIAS(cmd_stats_display, stats, stats display lwip.);
+SHELL_CMD_EXPORT_ALIAS(cmd_abort, abort, user calls abort);

@@ -83,5 +83,4 @@ module_init(bl_mod_init);
 module_exit(bl_mod_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("qwang <qwang@bouffalolab.com>");
-MODULE_DESCRIPTION("Bouffalolab BL6XY net driver");
+MODULE_DESCRIPTION("Bouffalolab Device net driver");

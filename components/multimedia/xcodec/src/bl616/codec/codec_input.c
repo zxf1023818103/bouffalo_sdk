@@ -249,6 +249,17 @@ static void audioadc_analog_digital_init(aui_cfg_t *config)
         DISABLE,
         AUADC_SOURCE_ANALOG,
     };
+    if (config->sample_rate == 8000) {
+        auadc_cfg.clk = AUADC_CLK_8K_HZ;
+    } else if (config->sample_rate == 16000) {
+        auadc_cfg.clk = AUADC_CLK_16K_HZ;
+    } else if (config->sample_rate == 32000) {
+        auadc_cfg.clk = AUADC_CLK_32K_HZ;
+    } else if (config->sample_rate == 48000) {
+        auadc_cfg.clk = AUADC_CLK_48K_HZ;
+    } else {
+        auadc_cfg.clk = AUADC_CLK_16K_HZ;
+    } 
 
     AUADC_FifoCfg_Type auadc_fifo_cfg = {
         AUADC_RES_16_BITS,

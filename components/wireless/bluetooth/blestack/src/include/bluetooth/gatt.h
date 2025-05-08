@@ -21,7 +21,7 @@
 #include <sys/types.h>
 #include <misc/util.h>
 #include <conn.h>
-#include <../bluetooth/uuid.h>
+#include <../bluetooth/bt_uuid.h>
 #include <port/include/config.h>
 
 #include <att.h>
@@ -336,6 +336,14 @@ int bt_gatt_service_register(struct bt_gatt_service *svc);
  *  @return 0 in case of success or negative value in case of error.
  */
 int bt_gatt_service_unregister(struct bt_gatt_service *svc);
+
+/** @brief Get GATT attribute via attribute handle.
+ * *
+ *  @param handle  attribute handle.
+ *
+ *  @return attrubte pointer in case of success or NULL in case of error.
+ */
+struct bt_gatt_attr * bt_gatt_find_attr(uint16_t handle);
 
 enum {
 	BT_GATT_ITER_STOP = 0,
@@ -1245,6 +1253,7 @@ struct bt_gatt_write_params {
  */
 int bt_gatt_write(struct bt_conn *conn, struct bt_gatt_write_params *params);
 
+int bt_gatt_cancle_prepare_writes(struct bt_conn *conn, struct bt_gatt_write_params *params);
 
 #if defined(CONFIG_BT_STACK_PTS)
 int bt_gatt_prepare_write(struct bt_conn *conn,

@@ -18,14 +18,15 @@ INPUT(-lgcc)
 ENTRY(__start)
 
 StackSize = 0x1000; /*  4KB */
-VerOffset = 0xc00;
+VerOffset = 0xC00;
 Boot2Size = 0xC000;
 PROVIDE(__boot2_pass_param_addr = 0x42033C00);
 
 MEMORY
 {
     fw_header_memory  (rx)  : ORIGIN = 0x23000000 - 0x1000, LENGTH = 4K
-    xip_memory  (rx)  : 	ORIGIN = 0x23000000, LENGTH = 3K + 256
+    xip_memory  (rx)  : 	ORIGIN = 0x23000000, LENGTH = 3K
+    ver_memory  (rx)  : 	ORIGIN = 0x23000000 + VerOffset, LENGTH = 256
     xip_memory1 (rx)  : 	ORIGIN = 0x23000d00, LENGTH = 44K + 768
     itcm_memory (rx)  : 	ORIGIN = 0x22020000, LENGTH = 16K
     dtcm_memory (rx)  : 	ORIGIN = 0x42024000, LENGTH = 4K
@@ -57,7 +58,7 @@ SECTIONS
 
     } > xip_memory
 
-    .ver 0 : AT(ORIGIN(xip_memory) + VerOffset)
+    .ver :
     {
         LONG(0x42464c42); /* BLFB */
         LONG(0x46524556); /* VERF */
@@ -65,7 +66,7 @@ SECTIONS
         LONG(0x42464c42); /* BLFB */
         LONG(0x46524556); /* VERF */
         KEEP (*(.verinfo))
-    }
+    } > ver_memory
 
     .text :
     {
@@ -132,7 +133,20 @@ SECTIONS
 
     } > itcm_memory
 
-    __dtcm_load_addr = __itcm_load_addr + SIZEOF(.itcm_region);
+    __hbn_load_addr = __itcm_load_addr + SIZEOF(.itcm_region);
+
+    .hbn_ram_region : AT (__hbn_load_addr)
+    {
+        . = ALIGN(4);
+        __hbn_ram_start__ = .;
+        *(.hbn_code.*)
+        *(.hbn_data.*)
+        *(.retention)
+        . = ALIGN(4);
+        __hbn_ram_end__ = .;
+    } > hbn_memory
+
+    __dtcm_load_addr = __hbn_load_addr + SIZEOF(.hbn_ram_region);
 
     .dtcm_region : AT (__dtcm_load_addr)
     {

@@ -6,6 +6,9 @@
 //#include <hal_sys.h>
 #include <sdio_port.h>
 
+#define RNM_MTD_PARTITION_NAME_FW_DEFAULT      "FW"
+#define RNM_MTD_OPEN_FLAG_BACKUP               (1<<0)
+
 typedef struct ota_header {
     union {
         struct {
@@ -144,7 +147,7 @@ static int handle_start(rnms_t *rnm, rnm_msg_t *cmd)
     }
     rnm_ota_t *octx = (rnm_ota_t *)rnm->ota;
 
-    ret = bl_mtd_open(BL_MTD_PARTITION_NAME_FW_DEFAULT, &octx->mtd_hdl, BL_MTD_OPEN_FLAG_BACKUP);
+    ret = bl_mtd_open(RNM_MTD_PARTITION_NAME_FW_DEFAULT, &octx->mtd_hdl, RNM_MTD_OPEN_FLAG_BACKUP);
     if (ret) {
         HR_LOGE("Open Default FW partition failed\r\n");
         MY_ERROR_OUT(BFLB_OTA_ERROR_MISC, -1, error1);

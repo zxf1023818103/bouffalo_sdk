@@ -107,6 +107,9 @@ struct bt_conn *bt_conn_lookup_addr_le(u8_t id, const bt_addr_le_t *peer);
 #if defined(BFLB_BLE)
 bool le_check_valid_conn(void);
 void notify_disconnected(struct bt_conn *conn);
+#if (CONFIG_BT_REMOTE_VERSION)
+void notify_remote_version(struct bt_conn *conn);
+#endif /* CONFIG_BT_REMOTE_VERSION */
 #if defined(BFLB_HOST_ASSISTANT)
 void bt_notify_disconnected(void);
 #endif
@@ -503,6 +506,11 @@ struct bt_conn_cb {
 	 *  @param rx_phy Receive phy.
 	 */
 	void (*le_phy_updated)(struct bt_conn *conn, u8_t tx_phy, u8_t rx_phy);
+
+#if defined(CONFIG_USER_DATA_LEN_UPDATE)
+	void (*le_datalen_updated)(struct bt_conn *conn, u16_t tx_octets, u16_t tx_time,u16_t rx_octets,u16_t rx_time);
+#endif
+
 #if defined(CONFIG_BT_SMP)
 	/** @brief Remote Identity Address has been resolved.
 	 *
@@ -530,6 +538,10 @@ struct bt_conn_cb {
 	void (*security_changed)(struct bt_conn *conn, bt_security_t level,
 				 enum bt_security_err err);
 #endif /* defined(CONFIG_BT_SMP) || defined(CONFIG_BT_BREDR) */
+#if (CONFIG_BT_REMOTE_VERSION)
+	void (*remote_version)(struct bt_conn *conn, u8_t version,
+		u16_t manufacturer, u16_t subversion);
+#endif /* CONFIG_BT_REMOTE_VERSION */
 	struct bt_conn_cb *_next;
 };
 
@@ -1007,6 +1019,18 @@ int bt_conn_enable_peripheral_pref_param_update(struct bt_conn *conn, bool enabl
 #endif
 #endif
 
+#if defined(BFLB_BLE_SUPPORT_CUSTOMIZED_SCAN_PARAMERS_IN_GENERAL_CONN_ESTABLISH)
+/** @brief Set scan interval and scan window in scanning procedure of ble general conection establishement.
+ *
+ * @param scan_interval scan interval.
+ * @param scan_window  scan window.
+ *
+ * @return 0 in case of success or negative value in case of error.
+ * In ble general conection establishement,the default scan interval is 30ms and the default scan window is 30 ms in scanning procedure.
+ * Appllication layer shall call this API before bt_conn_create_le.
+ */
+int bt_conn_set_scan_parameters_in_general_conn_establish(u16_t scan_interval, u16_t scan_window);
+#endif //BFLB_BLE_SUPPORT_CUSTOMIZED_SCAN_PARAMERS_IN_GENERAL_CONN_ESTABLISH
 #endif
 
 #ifdef __cplusplus

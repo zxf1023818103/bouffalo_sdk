@@ -52,7 +52,7 @@ static inline void inc_stat_scratch_ctr(rnms_t *rnm, int id)
 void rnms_notify_sta_ip_addr(rnms_t *rnm)
 {
     rnm_sta_ip_update_ind_msg_t msg;
-    uint32_t addr, mask, gw, dns;
+    uint32_t addr, mask, gw, dns, dns_backup;
 
     if (!rnm->have_valid_sta_ip) {
         return;
@@ -63,6 +63,41 @@ void rnms_notify_sta_ip_addr(rnms_t *rnm)
     msg.hdr.msg_id = ++rnm->last_msg_id;
 
     wifi_sta_ip4_addr_get(&addr, &mask, &gw, &dns);
+#if LWIP_DNS
+#include "lwip/dns.h"
+#include "lwip/ip_addr.h"
+    const ip_addr_t *ip;
+
+    ip = dns_getserver(1);
+    dns_backup = ip_addr_get_ip4_u32(ip);
+#endif
+    MEMCPY_SAFE(msg.ip4_addr,  4,  &addr,  4);
+    MEMCPY_SAFE(msg.ip4_mask,  4,  &mask,  4);
+    MEMCPY_SAFE(msg.ip4_gw,  4,  &gw,  4);
+    MEMCPY_SAFE(msg.ip4_dns1,  4,  &dns,  4);
+    MEMCPY_SAFE(msg.ip4_dns2,  4,  &dns_backup,  4);
+
+    rnms_msg_output(rnm, &msg, sizeof(msg));
+}
+
+#ifdef CFG_DUAL_ETH
+void rnms_notify_sdioeth_ip_addr(rnms_t *rnm)
+{
+    rnm_sta_ip_update_ind_msg_t msg;
+    uint32_t addr, mask, gw, dns;
+
+#ifndef SDIOWIFI_OFFLINE
+    if (!rnm->have_valid_sta_ip) {
+        return;
+    }
+#endif
+    MEMSET_SAFE(&msg,  sizeof(msg),  0,  sizeof(msg));
+    msg.hdr.cmd = BF1B_CMD_STA_IP_UPDATE_IND;
+    msg.hdr.flags = RNM_MSG_FLAG_ASYNC;
+    msg.hdr.msg_id = ++rnm->last_msg_id;
+
+    sdio_mgmr_sdioeth_ip4_addr_get(&addr, &mask, &gw, &dns);
+
     MEMCPY_SAFE(msg.ip4_addr,  4,  &addr,  4);
     MEMCPY_SAFE(msg.ip4_mask,  4,  &mask,  4);
     MEMCPY_SAFE(msg.ip4_gw,  4,  &gw,  4);
@@ -70,7 +105,7 @@ void rnms_notify_sta_ip_addr(rnms_t *rnm)
 
     rnms_msg_output(rnm, &msg, sizeof(msg));
 }
-
+#endif
 static void stop_ap()
 {
 #ifdef CFG_BL616

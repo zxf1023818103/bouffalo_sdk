@@ -66,11 +66,10 @@ void k_queue_init(struct k_queue *queue, int size)
     //int size = 20;
     uint8_t blk_size = sizeof(void *);
 
-
+    sys_dlist_init(&queue->poll_events);
     queue->hdl = xQueueCreate(size, blk_size);
     BT_ASSERT(queue->hdl != NULL);
 
-    sys_dlist_init(&queue->poll_events);
 }
 
 void k_queue_insert(struct k_queue *queue, void *prev, void *data)
@@ -424,10 +423,14 @@ void k_free(void *buf)
 
 void bt_assert(void)
 {
+    BT_ERR("%s, ra = 0x%lx\r\n", __func__, (uint32_t)__builtin_return_address(0));
     #if defined(CFG_IOT_SDK) || defined(BL_MCU_SDK)
     extern void user_vAssertCalled(void);
     user_vAssertCalled();
     #else /* CFG_IOT_SDK BL_MCU_SDK */
+    #if defined (CONFIG_BL_SDK)
+    vAssertCalled();
+    #endif
 
     #endif /* CFG_IOT_SDK BL_MCU_SDK */
 }

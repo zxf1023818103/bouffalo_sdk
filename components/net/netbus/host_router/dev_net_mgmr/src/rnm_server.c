@@ -45,7 +45,11 @@ static void rnms_event_task(void *pvParameters)
                 rnms_send_simple_async_msg(rnm, BF1B_CMD_AP_STOPPED_IND);
             } else if (code == CODE_WIFI_ON_GOT_IP) {
                 rnm->have_valid_sta_ip = true;
-                rnms_notify_sta_ip_addr(rnm);
+#ifdef CFG_DUAL_ETH
+        	 rnms_notify_sdioeth_ip_addr(rnm);
+#else
+        	 rnms_notify_sta_ip_addr(rnm);
+#endif
             }
         }
     }

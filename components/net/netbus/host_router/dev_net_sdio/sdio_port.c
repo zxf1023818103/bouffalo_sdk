@@ -9,7 +9,18 @@
 #include <sdiowifi_platform_adapt.h>
 
 #if defined(CFG_BL616)
+
+#ifdef CONFIG_BOUFFALO_SDK
+#include "bflb_core.h"
+ATTR_NOCACHE_NOINIT_LPFW_SHARE __ALIGNED(32) struct {
+    uint32_t buf[SDIO_RX_MAX_PORT_NUM][SDIO_RX_BUF_SIZE / 4];
+} sdio_readbuf_wrapper;
+uint32_t (*sdio_readbuf)[SDIO_RX_BUF_SIZE / 4] = (void *)&sdio_readbuf_wrapper;
+
+#else
 uint32_t (*sdio_readbuf)[SDIO_RX_BUF_SIZE / 4] = (void *)SDIO_RX_BUF_START;
+#endif
+
 #else
 struct {
     uint32_t buf[SDIO_RX_MAX_PORT_NUM][SDIO_RX_BUF_SIZE / 4];

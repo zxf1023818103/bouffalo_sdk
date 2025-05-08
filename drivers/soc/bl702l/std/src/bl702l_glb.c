@@ -325,6 +325,19 @@ BL_Err_Type ATTR_CLOCK_SECTION GLB_Set_System_CLK(GLB_DLL_XTAL_Type xtalType, GL
 *******************************************************************************/
 #ifndef BFLB_USE_ROM_DRIVER
 __WEAK
+typedef struct
+{
+    BL_ENUM_Type owner;               /*!< Sflash interface bus owner */
+    BL_ENUM_Type sahbClock;           /*!< Sflash clock sahb sram select */
+    BL_ENUM_Type ahb2sifMode;         /*!< Sflash ahb2sif mode */
+    uint8_t clkDelay;                 /*!< Clock count for read due to pad delay */
+    uint8_t clkInvert;                /*!< Clock invert */
+    uint8_t rxClkInvert;              /*!< RX clock invert */
+    uint8_t doDelay;                  /*!< Data out delay */
+    uint8_t diDelay;                  /*!< Data in delay */
+    uint8_t oeDelay;                  /*!< Output enable delay */
+} SF_Ctrl_Cfg_Type;
+
 BL_Err_Type ATTR_CLOCK_SECTION System_Core_Clock_Update_From_RC32M(void)
 {
     SF_Ctrl_Cfg_Type sfCtrlCfg = {

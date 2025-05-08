@@ -34,6 +34,10 @@
 #define BL_LP_SOFT_INT_CLEAR            (bflb_irq_clear_pending(MSOFT_IRQn))
 
 
+extern uint32_t __itcm_load_addr;
+extern uint32_t __tcm_code_start__;
+extern uint32_t __tcm_code_end__;
+
 extern void bl_lp_debug_record_time(iot2lp_para_t *iot_lp_para, char *info_str);
 extern void bl_lp_debug_clean_time(iot2lp_para_t *iot_lp_para);
 extern void bl_lp_debug_dump_time(iot2lp_para_t *iot_lp_para);
@@ -42,6 +46,9 @@ bl_lp_fw_cfg_t lpfw_cfg = {
     .rtc_timeout_us = (1 * 1000 * 1000),
     .pds_timeout_us = (10 * 1000 * 1000),
 };
+
+/* EM Select, will get from glb register */
+static uint8_t emSel = 0;
 
 struct lp_env {
     void *sys_enter_arg;
@@ -72,6 +79,19 @@ static void bl_lp_soft_irq(void);
 static bl_lp_soft_irq_callback_t lp_soft_callback = { NULL };
 
 #define GET_OFFSET(_type, _member) ((unsigned long)(&((_type *)0)->_member))
+
+void ATTR_HBN_CODE_SECTION load_tcm_code(void)
+{
+    uint32_t *pSrc, *pDest;
+
+    /* Copy ITCM code */
+    pSrc = &__itcm_load_addr;
+    pDest = &__tcm_code_start__;
+
+    for (; pDest < &__tcm_code_end__;) {
+        *pDest++ = *pSrc++;
+    }
+}
 
 void lp_fw_save_cpu_para(uint32_t save_addr)
 {
@@ -113,6 +133,8 @@ void lp_fw_restore_cpu_para(uint32_t save_addr)
 {
     __asm__ __volatile__(
 
+        /* restore tcm code */
+        "call load_tcm_code\n\t"
 
         ".option push\n\t"
         ".option norelax\n\t"
@@ -165,6 +187,37 @@ void lp_fw_restore_cpu_para(uint32_t save_addr)
         );
 }
 
+static void ATTR_TCM_SECTION lp_clock_init(void)
+{
+    GLB_Set_System_CLK(GLB_DLL_XTAL_32M, GLB_SYS_CLK_DLL144M);
+    HBN_Set_XCLK_CLK_Sel(HBN_XCLK_CLK_XTAL);
+}
+
+
+__WEAK void ATTR_TCM_SECTION bl_lp_recovery_hardware(void)
+{
+    lp_clock_init();
+
+    bl_lp_xip_recovery();
+}
+
+__attribute__((used)) void ATTR_HBN_CODE_SECTION lp_fw_pre(void)
+{
+    // Restore EM select
+    BL_WR_REG(GLB_BASE, GLB_SEAM_MISC, emSel);
+
+    /* Enable jtag */
+    *((volatile uint32_t *)0x40000080) = 0x0001000C;
+
+    /* clear HBN Rsv0 & Rsv1*/
+    putreg32(0x0, 0x4000F100);
+    putreg32(0x0, 0x4000F104);
+
+    /* jump to lp_fw */
+    void (*pFunc)(void);
+    pFunc = (void (*)(void))bl_lp_recovery_hardware;
+    pFunc();
+}
 
 void bl_lp_fw_init()
 {
@@ -187,7 +240,6 @@ void bl_lp_fw_init()
     BL_LP_LOG("flash jdec_id 0x%08lX\r\n", (unsigned long)iot2lp_para->flash_jdec_id);
 
     bl_lp_xip_para_save();
-
 }
 
 __WEAK void bl_lp_io_init(uint64_t value)
@@ -206,9 +258,6 @@ __WEAK void bl_lp_io_init(uint64_t value)
     }
     if(value & HBN_WAKEUP_GPIO_12) {
         bflb_gpio_init(gpio, GPIO_PIN_12, GPIO_INPUT | GPIO_SMT_EN | GPIO_DRV_0);
-    }
-    if(value & HBN_WAKEUP_GPIO_13) {
-        bflb_gpio_init(gpio, GPIO_PIN_13, GPIO_INPUT | GPIO_SMT_EN | GPIO_DRV_0);
     }
 }
 
@@ -229,13 +278,12 @@ static void bl_lp_io_wakeup_init(bl_lp_io_cfg_t *io_wakeup_cfg)
     ie = (io_wakeup_cfg->io_9_ie << 0)
         | (io_wakeup_cfg->io_10_ie << 1)
         | (io_wakeup_cfg->io_11_ie << 2)
-        | (io_wakeup_cfg->io_12_ie << 3)
-        | (io_wakeup_cfg->io_13_ie << 4);
+        | (io_wakeup_cfg->io_12_ie << 3);
     bl_lp_io_init(ie);
     HBN_Aon_Pad_IeSmt_Cfg(ie&0x1F);
     if ((io_unmask >> 9) & 0x1f) {
         HBN_Pin_WakeUp_Mask((~(uint8_t)((io_unmask >> 9))&0x1f));
-        HBN_GPIO_INT_Enable(io_wakeup_cfg->io_9_13_pds_trig_mode);
+        HBN_GPIO_INT_Enable(io_wakeup_cfg->io_9_12_pds_trig_mode);
         PDS_IntEn(PDS_INT_HBN_IRQ_OUT0,ENABLE);
     } else {
         HBN_Aon_Pad_IeSmt_Cfg(0);
@@ -441,22 +489,27 @@ static void bl_lp_set_wakeup_reason(void)
         iot2lp_para->wakeup_reason |= LPFW_WAKEUP_PDSTIMER;
     } else if (PDS_Get_IntStatus(PDS_INT_HBN_IRQ_OUT0)) {
         if (SET == HBN_Get_INT_State(HBN_INT_GPIO9)) {
+            iot2lp_para->wakeup_reason |= LPFW_WAKEUP_IO;
             iot2lp_para->wake_io_bits |= (1<<9);
             HBN_Clear_IRQ(HBN_INT_GPIO9);
         }
         if (SET == HBN_Get_INT_State(HBN_INT_GPIO10)) {
+            iot2lp_para->wakeup_reason |= LPFW_WAKEUP_IO;
             iot2lp_para->wake_io_bits |= (1<<10);
             HBN_Clear_IRQ(HBN_INT_GPIO10);
         }
         if (SET == HBN_Get_INT_State(HBN_INT_GPIO11)) {
+            iot2lp_para->wakeup_reason |= LPFW_WAKEUP_IO;
             iot2lp_para->wake_io_bits |= (1<<11);
             HBN_Clear_IRQ(HBN_INT_GPIO11);
         }
         if (SET == HBN_Get_INT_State(HBN_INT_GPIO12)) {
+            iot2lp_para->wakeup_reason |= LPFW_WAKEUP_IO;
             iot2lp_para->wake_io_bits |= (1<<12);
             HBN_Clear_IRQ(HBN_INT_GPIO12);
         }
         if (SET == HBN_Get_INT_State(HBN_INT_GPIO13)) {
+            iot2lp_para->wakeup_reason |= LPFW_WAKEUP_IO;
             iot2lp_para->wake_io_bits |= (1<<13);
             HBN_Clear_IRQ(HBN_INT_GPIO13);
         }
@@ -662,6 +715,8 @@ int bl_lp_fw_enter(bl_lp_fw_cfg_t *bl_lp_fw_cfg)
 int bl_lp_init(void)
 {
     assert(!gp_lp_env);
+
+    emSel = BL_RD_REG(GLB_BASE, GLB_SEAM_MISC);
 
     gp_lp_env = malloc(sizeof(struct lp_env));
     assert(gp_lp_env);

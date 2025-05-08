@@ -67,7 +67,7 @@ extern uint32_t g_anti_rollback_flag[3];
 #ifdef CHIP_BL702L
 #define BLSP_APP_VERSION_MAX                  (64)
 #endif
-#ifdef CHIP_BL606p
+#ifdef CHIP_BL606P
 #define BLSP_APP_VERSION_MAX                  (128)
 #endif
 #ifdef CHIP_BL808

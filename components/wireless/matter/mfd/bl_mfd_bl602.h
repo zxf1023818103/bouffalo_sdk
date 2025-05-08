@@ -17,12 +17,12 @@
 #define MFD_WRAM_END BL602_WRAM_END
 #define BOOT2_PARTITION_ADDR_ACTIVE hal_boot2_partition_addr_active
 
-#define SEC_ENG_REQUEST_AES_ACCESS() Sec_Eng_Group0_Request_AES_Access()
-#define SEC_ENG_RELEASE_AES_ACCESS() Sec_Eng_Group0_Release_AES_Access()
+#define SEC_ENG_REQUEST_AES_ACCESS() 
+#define SEC_ENG_RELEASE_AES_ACCESS() 
 #define SF_CTRL_GET_FLASH_IMAGE_OFFSET() RomDriver_SF_Ctrl_Get_Flash_Image_Offset()
 #define MFD_RUNNING_MEMORY_CHECK() \
     configASSERT(MFD_WRAM_START <= (uint32_t) mfd_decrypt_buf && (uint32_t) mfd_decrypt_buf < MFD_WRAM_END);
 
-bool bl_mfd_decrypt(uint8_t *p, uint32_t len, uint32_t *pIv);
+bool bl_mfd_decrypt(uint8_t *p, uint32_t len, uint8_t *pout, uint32_t *pIv);
 
 #endif

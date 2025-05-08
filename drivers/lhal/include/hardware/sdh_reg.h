@@ -36,6 +36,10 @@
 #ifndef __SDH_REG_H__
 #define __SDH_REG_H__
 
+#if defined(BL616) || defined(BL808)
+#define SDH_STD_V3
+#endif
+
 #define SDH_SYS_ADDR_LOW_OFFSET                 (0x00)  /* System Address Low Register */
 #define SDH_SYS_ADDR_HIGH_OFFSET                (0x02)  /* System Address High Register */
 #define SDH_BLOCK_SIZE_OFFSET                   (0x04)  /* Block Size Register */
@@ -94,6 +98,8 @@
 #define SDH_SHARED_BUS_CTRL_OFFSET              (0xe0)  /* Shared Bus Control Register */
 #define SDH_SLOT_INT_STATUS_OFFSET              (0xFC)  /* Slot Interrupt Status Register */
 #define SDH_HOST_CTRL_VER_OFFSET                (0xFE)  /* Host Control Version Register */
+
+#ifdef SDH_STD_V3
 #define SDH_CFG_FIFO_PARAM_OFFSET               (0x100) /*: SD Extra Parameters Register */
 #define SDH_FIFO_PARAM_OFFSET                   (0x104) /*: FIFO Parameters Register */
 #define SDH_SPI_MODE_OFFSET                     (0x108) /*: SPI Mode Register */
@@ -104,6 +110,7 @@
 #define SDH_RX_CFG_REG_OFFSET                   (0x114) /*: RX Configuration Register */
 #define SDH_TX_CFG_REG_OFFSET                   (0x118) /*: TX Configuration Register */
 #define SDH_TUNING_CFG_REG_OFFSET               (0x11c) /*: TUNING CONFIG Register */
+#endif
 
 
 /* 0x00 : System Address Low Register */
@@ -1497,6 +1504,8 @@
 #define SDH_VENDOR_VER_MSK                      (((1U << SDH_VENDOR_VER_LEN) - 1) << SDH_VENDOR_VER_POS)
 #define SDH_VENDOR_VER_UMSK                     (~(((1U << SDH_VENDOR_VER_LEN) - 1) << SDH_VENDOR_VER_POS))
 
+#ifdef SDH_STD_V3
+
 /* 0x100 : SD Extra Parameters Register */
 #define SDH_BOOT_ACK                            SDH_BOOT_ACK
 #define SDH_BOOT_ACK_POS                        (3U)
@@ -1791,5 +1800,7 @@
 #define SDH_TUNING_SUCCESS_CNT_LEN              (6U)
 #define SDH_TUNING_SUCCESS_CNT_MSK              (((1U << SDH_TUNING_SUCCESS_CNT_LEN) - 1) << SDH_TUNING_SUCCESS_CNT_POS)
 #define SDH_TUNING_SUCCESS_CNT_UMSK             (~(((1U << SDH_TUNING_SUCCESS_CNT_LEN) - 1) << SDH_TUNING_SUCCESS_CNT_POS))
+
+#endif
 
 #endif /* __SDH_REG_H__ */

@@ -569,8 +569,8 @@ static int32_t ATTR_TCM_SECTION bflb_eflash_loader_cmd_read_flash(uint16_t cmd, 
         arch_memcpy(&startaddr, data, 4);
         arch_memcpy(&read_len, data + 4, 4);
 
-        if (read_len > BFLB_BOOT2_READBUF_SIZE) {
-            read_len = BFLB_BOOT2_READBUF_SIZE;
+        if (read_len > BFLB_BOOT2_READBUF_SIZE - 4) {
+            read_len = BFLB_BOOT2_READBUF_SIZE - 4;
         }
 
         ackdata[0] = 'O';
@@ -581,7 +581,7 @@ static int32_t ATTR_TCM_SECTION bflb_eflash_loader_cmd_read_flash(uint16_t cmd, 
 
         bflb_eflash_loader_cmd_response((uint32_t *)ackdata, read_len + 4);
     }
-    return BFLB_EFLASH_LOADER_SUCCESS;
+    return ret;
 }
 
 static int32_t ATTR_TCM_SECTION bflb_eflash_loader_cmd_xip_read_flash_start(uint16_t cmd, uint8_t *data, uint16_t len)

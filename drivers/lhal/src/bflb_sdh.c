@@ -7,6 +7,9 @@ int bflb_sdh_init(struct bflb_device_s *dev, struct bflb_sdh_config_s *cfg)
     LHAL_PARAM_ASSERT(dev);
     LHAL_PARAM_ASSERT(cfg);
 
+#ifdef romapi_bflb_sdh_init
+    return romapi_bflb_sdh_init(dev, cfg);
+#else
     uint32_t reg_base;
     uint32_t regval;
 
@@ -32,6 +35,7 @@ int bflb_sdh_init(struct bflb_device_s *dev, struct bflb_sdh_config_s *cfg)
     regval |= cfg->power_vol << SDH_SD_BUS_VLT_POS;
     putreg16(regval, reg_base + SDH_HOST_CTRL_OFFSET);
 
+#ifdef SDH_STD_V3
     /* DMA burst */
     regval = getreg16(reg_base + SDH_CLOCK_AND_BURST_SIZE_SETUP_OFFSET);
     regval &= ~SDH_BRST_SIZE_MSK;
@@ -41,6 +45,12 @@ int bflb_sdh_init(struct bflb_device_s *dev, struct bflb_sdh_config_s *cfg)
     regval &= ~SDH_DMA_SIZE_MSK;
     regval |= cfg->dma_fifo_th << SDH_DMA_SIZE_POS;
     putreg16(regval, reg_base + SDH_CLOCK_AND_BURST_SIZE_SETUP_OFFSET);
+
+    /* tx root clock cfg */
+    regval = getreg16(reg_base + SDH_TX_CFG_REG_OFFSET);
+    regval |= SDH_TX_INT_CLK_SEL_MSK;
+    putreg16(regval, reg_base + SDH_TX_CFG_REG_OFFSET);
+#endif
 
     /* enable all normal status */
     regval = SDH_NORMAL_STA_CMD_COMP | SDH_NORMAL_STA_TRAN_COMP | SDH_NORMAL_STA_BLK_GAP_EVENT |
@@ -55,12 +65,8 @@ int bflb_sdh_init(struct bflb_device_s *dev, struct bflb_sdh_config_s *cfg)
               SDH_ERROR_STA_TUNING_ERROR;
     putreg32(regval, reg_base + SDH_NORMAL_INT_STATUS_EN_OFFSET);
 
-    /* tx root clock cfg */
-    regval = getreg16(reg_base + SDH_TX_CFG_REG_OFFSET);
-    regval |= SDH_TX_INT_CLK_SEL_MSK;
-    putreg16(regval, reg_base + SDH_TX_CFG_REG_OFFSET);
-
     return 0;
+#endif
 }
 
 /* Convert the description of the data transfer into ADMA2 hardware descriptors. */
@@ -68,6 +74,9 @@ int bflb_sdh_adma2_desc_init(struct bflb_device_s *dev, struct bflb_sdh_data_cfg
 {
     LHAL_PARAM_ASSERT(dev);
 
+#ifdef romapi_bflb_sdh_adma2_desc_init
+    return romapi_bflb_sdh_adma2_desc_init(dev, data_cfg);
+#else
     struct bflb_sdh_data_tranfer_s *curr_tranfer = NULL;
     struct bflb_sdh_adma2_hw_desc_s *curr_hw_desc = NULL;
     uint32_t hw_desc_cnt = 0;
@@ -134,6 +143,7 @@ int bflb_sdh_adma2_desc_init(struct bflb_device_s *dev, struct bflb_sdh_data_cfg
     }
 
     return 0;
+#endif
 }
 
 /*  */
@@ -142,6 +152,9 @@ int bflb_sdh_cmd_cfg(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s *cmd_c
     LHAL_PARAM_ASSERT(dev);
     LHAL_PARAM_ASSERT(cmd_cfg);
 
+#ifdef romapi_bflb_sdh_cmd_cfg
+    return romapi_bflb_sdh_cmd_cfg(dev, cmd_cfg);
+#else
     uint32_t reg_base;
     uint32_t regval;
 
@@ -225,12 +238,16 @@ int bflb_sdh_cmd_cfg(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s *cmd_c
     putreg8(regval, reg_base + SDH_CMD_OFFSET);
 
     return 0;
+#endif
 }
 
 int bflb_sdh_data_cfg(struct bflb_device_s *dev, struct bflb_sdh_data_cfg_s *data_cfg)
 {
     LHAL_PARAM_ASSERT(dev);
 
+#ifdef romapi_bflb_sdh_data_cfg
+    return romapi_bflb_sdh_data_cfg(dev, data_cfg);
+#else
     uint32_t reg_base;
     uint32_t regval;
 
@@ -317,6 +334,7 @@ int bflb_sdh_data_cfg(struct bflb_device_s *dev, struct bflb_sdh_data_cfg_s *dat
     putreg16(regval, reg_base + SDH_BLOCK_SIZE_OFFSET);
 
     return 0;
+#endif
 }
 
 int bflb_sdh_tranfer_start(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s *cmd_cfg, struct bflb_sdh_data_cfg_s *data_cfg)
@@ -324,6 +342,9 @@ int bflb_sdh_tranfer_start(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s 
     LHAL_PARAM_ASSERT(dev);
     LHAL_PARAM_ASSERT(cmd_cfg);
 
+#ifdef romapi_bflb_sdh_tranfer_start
+    return romapi_bflb_sdh_tranfer_start(dev, cmd_cfg, data_cfg);
+#else
     int ret;
     uint32_t reg_base;
 
@@ -353,6 +374,7 @@ int bflb_sdh_tranfer_start(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s 
     putreg8(cmd_cfg->index, reg_base + SDH_CMD_OFFSET + 1);
 
     return 0;
+#endif
 }
 
 int bflb_sdh_get_resp(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s *cmd_cfg)
@@ -360,6 +382,9 @@ int bflb_sdh_get_resp(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s *cmd_
     LHAL_PARAM_ASSERT(dev);
     LHAL_PARAM_ASSERT(cmd_cfg);
 
+#ifdef romapi_bflb_sdh_get_resp
+    return romapi_bflb_sdh_get_resp(dev, cmd_cfg);
+#else
     uint32_t reg_base;
     reg_base = dev->reg_base;
 
@@ -375,13 +400,17 @@ int bflb_sdh_get_resp(struct bflb_device_s *dev, struct bflb_sdh_cmd_cfg_s *cmd_
         cmd_cfg->resp[1] = getreg32(reg_base + SDH_RESP_2_OFFSET);
         cmd_cfg->resp[2] = getreg32(reg_base + SDH_RESP_4_OFFSET);
         cmd_cfg->resp[3] = getreg32(reg_base + SDH_RESP_6_OFFSET);
-    } 
+    }
     return 0;
+#endif
 }
 
 /* enable/disable status sig  */
 void bflb_sdh_sta_en(struct bflb_device_s *dev, uint32_t sta_bit, bool en)
 {
+#ifdef romapi_bflb_sdh_sta_en
+    romapi_bflb_sdh_sta_en(dev, sta_bit, en);
+#else
     uint32_t regval;
     uint32_t reg_base = dev->reg_base;
 
@@ -394,20 +423,28 @@ void bflb_sdh_sta_en(struct bflb_device_s *dev, uint32_t sta_bit, bool en)
     /* control error interrupt using the SDH_ERROR_xxx */
     regval &= ~SDH_NORMAL_STA_ERROR;
     putreg32(regval, reg_base + SDH_NORMAL_INT_STATUS_EN_OFFSET);
+#endif
 }
 
 uint32_t bflb_sdh_sta_en_get(struct bflb_device_s *dev)
 {
+#ifdef romapi_bflb_sdh_sta_en_get
+    return romapi_bflb_sdh_sta_en_get(dev);
+#else
     uint32_t regval;
     uint32_t reg_base = dev->reg_base;
     regval = getreg32(reg_base + SDH_NORMAL_INT_STATUS_EN_OFFSET);
 
     return regval;
+#endif
 }
 
 /* enable/disable status interrupt */
 void bflb_sdh_sta_int_en(struct bflb_device_s *dev, uint32_t sta_bit, bool en)
 {
+#ifdef romapi_bflb_sdh_sta_int_en
+    romapi_bflb_sdh_sta_int_en(dev, sta_bit, en);
+#else
     uint32_t regval;
     uint32_t reg_base = dev->reg_base;
 
@@ -420,36 +457,52 @@ void bflb_sdh_sta_int_en(struct bflb_device_s *dev, uint32_t sta_bit, bool en)
     /* control error interrupt using the SDH_ERROR_xxx */
     regval &= ~SDH_NORMAL_STA_ERROR;
     putreg32(regval, reg_base + SDH_NORMAL_INT_STATUS_INT_EN_OFFSET);
+#endif
 }
 
 uint32_t bflb_sdh_sta_int_en_get(struct bflb_device_s *dev)
 {
+#ifdef romapi_bflb_sdh_sta_int_en_get
+    return romapi_bflb_sdh_sta_int_en_get(dev);
+#else
     uint32_t regval;
     uint32_t reg_base = dev->reg_base;
     regval = getreg32(reg_base + SDH_NORMAL_INT_STATUS_INT_EN_OFFSET);
 
     return regval;
+#endif
 }
 
 /* get status */
 uint32_t bflb_sdh_sta_get(struct bflb_device_s *dev)
 {
+#ifdef romapi_bflb_sdh_sta_get
+    return romapi_bflb_sdh_sta_get(dev);
+#else
     uint32_t regval;
     uint32_t reg_base = dev->reg_base;
     regval = getreg32(reg_base + SDH_NORMAL_INT_STATUS_OFFSET);
 
     return regval;
+#endif
 }
 
 /* clr status */
 void bflb_sdh_sta_clr(struct bflb_device_s *dev, uint32_t sta_bit)
 {
+#ifdef romapi_bflb_sdh_sta_clr
+    romapi_bflb_sdh_sta_clr(dev, sta_bit);
+#else
     uint32_t reg_base = dev->reg_base;
     putreg32(sta_bit, reg_base + SDH_NORMAL_INT_STATUS_OFFSET);
+#endif
 }
 
 int bflb_sdh_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg)
 {
+#ifdef romapi_bflb_sdh_feature_control
+    return romapi_bflb_sdh_feature_control(dev, cmd, arg);
+#else
     int ret = 0;
     uint32_t reg_base;
     uint32_t regval;
@@ -462,15 +515,15 @@ int bflb_sdh_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg)
 
         case SDH_CMD_SET_BUS_WIDTH:
             regval = getreg16(reg_base + SDH_HOST_CTRL_OFFSET);
-            if(arg == 1){
+            if (arg == 1) {
                 regval &= ~SDH_EX_DATA_WIDTH_MSK;
                 regval &= ~SDH_DATA_WIDTH_MSK;
-            }else if(arg == 4){
+            } else if (arg == 4) {
                 regval &= ~SDH_EX_DATA_WIDTH_MSK;
                 regval |= SDH_DATA_WIDTH_MSK;
-            }else if(arg == 8){
+            } else if (arg == 8) {
                 regval |= SDH_EX_DATA_WIDTH_MSK;
-            }else{
+            } else {
                 ret = -1;
             }
             putreg16(regval, reg_base + SDH_HOST_CTRL_OFFSET);
@@ -482,6 +535,16 @@ int bflb_sdh_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg)
                 regval |= SDH_SD_BUS_POWER_MSK;
             } else {
                 regval &= ~SDH_SD_BUS_POWER_MSK;
+            }
+            putreg16(regval, reg_base + SDH_HOST_CTRL_OFFSET);
+            break;
+
+        case SDH_CMD_SET_HS_MODE_EN:
+            regval = getreg16(reg_base + SDH_HOST_CTRL_OFFSET);
+            if (arg) {
+                regval |= SDH_HI_SPEED_EN_MSK;
+            } else {
+                regval &= ~SDH_HI_SPEED_EN_MSK;
             }
             putreg16(regval, reg_base + SDH_HOST_CTRL_OFFSET);
             break;
@@ -512,7 +575,39 @@ int bflb_sdh_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg)
             }
             putreg16(regval, reg_base + SDH_CLOCK_CTRL_OFFSET);
             break;
-            
+
+        case SDH_CMD_SET_BUS_CLK_DIV:
+            arg = (arg + 1) / 2;
+            arg = (arg > 0x3ff) ? 0x3ff : arg;
+            regval = getreg16(reg_base + SDH_CLOCK_CTRL_OFFSET);
+            /* bit[7:0] */
+            regval &= ~SDH_SD_FREQ_SEL_LO_MSK;
+            regval |= (arg << SDH_SD_FREQ_SEL_LO_POS) & SDH_SD_FREQ_SEL_LO_MSK;
+            /* bit[9:8] */
+            regval &= ~SDH_SD_FREQ_SEL_HI_MSK;
+            regval |= ((arg >> 8) << SDH_SD_FREQ_SEL_HI_POS) & SDH_SD_FREQ_SEL_HI_MSK;
+            putreg16(regval, reg_base + SDH_CLOCK_CTRL_OFFSET);
+            break;
+
+        case SDH_CMD_SET_DATA_TIMEOUT_CNT_VAL:
+            /*!< Data timeout_s = (2^(val+13)) / root_clk_freq */
+            regval = getreg8(reg_base + SDH_TIMEOUT_CTRL_SW_RESET_OFFSET);
+            regval &= ~SDH_TIMEOUT_VALUE_MSK;
+            regval |= (arg << SDH_TIMEOUT_VALUE_POS) & SDH_TIMEOUT_VALUE_MSK;
+            putreg8(regval, reg_base + SDH_TIMEOUT_CTRL_SW_RESET_OFFSET);
+            break;
+
+        case SDH_CMD_SET_ASYNC_INT_EN:
+            regval = getreg16(reg_base + SDH_HOST_CTRL_2_OFFSET);
+            if (arg) {
+                regval |= SDH_ASYNC_INT_EN_MSK;
+            } else {
+                regval &= ~SDH_ASYNC_INT_EN_MSK;
+            }
+            putreg16(regval, reg_base + SDH_HOST_CTRL_2_OFFSET);
+            break;
+
+#ifdef SDH_STD_V3
         case SDH_CMD_ACTIVE_CLK_OUT:
             /* enable and clr misc completed sta */
             regval = getreg16(reg_base + SDH_CE_ATA_2_OFFSET);
@@ -527,9 +622,9 @@ int bflb_sdh_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg)
             regval |= SDH_GEN_PAD_CLK_ON_MSK;
             putreg32(regval, reg_base + SDH_CFG_FIFO_PARAM_OFFSET);
             /* wait misc completed */
-            do{
+            do {
                 regval = getreg16(reg_base + SDH_CE_ATA_2_OFFSET);
-            }while((regval & SDH_MISC_INT_MSK) == 0);
+            } while ((regval & SDH_MISC_INT_MSK) == 0);
             /* clr misc completed sta */
             regval |= SDH_MISC_INT_MSK;
             putreg16(regval, reg_base + SDH_CE_ATA_2_OFFSET);
@@ -538,25 +633,19 @@ int bflb_sdh_feature_control(struct bflb_device_s *dev, int cmd, uintptr_t arg)
         case SDH_CMD_FORCE_CLK_OUTPUT:
             regval = getreg32(reg_base + SDH_FIFO_PARAM_OFFSET);
             regval |= SDH_OVRRD_CLK_OEN_MSK;
-            if(arg){
+            if (arg) {
                 regval |= SDH_FORCE_CLK_ON_MSK;
-            }else{
+            } else {
                 regval &= ~SDH_FORCE_CLK_ON_MSK;
             }
             putreg32(regval, reg_base + SDH_FIFO_PARAM_OFFSET);
             break;
-
-        case SDH_CMD_SET_DATA_TIMEOUT_CNT_VAL:
-            /*!< Data timeout_s = (2^(val+13)) / root_clk_freq */
-            regval = getreg8(reg_base + SDH_TIMEOUT_CTRL_SW_RESET_OFFSET);
-            regval &=~SDH_TIMEOUT_VALUE_MSK;
-            regval |= (arg << SDH_TIMEOUT_VALUE_POS) & SDH_TIMEOUT_VALUE_MSK;
-            putreg8(regval, reg_base + SDH_TIMEOUT_CTRL_SW_RESET_OFFSET);
-            break;
-
+#endif
         default:
+            ret = -EPERM;
             break;
     }
 
     return ret;
+#endif
 }

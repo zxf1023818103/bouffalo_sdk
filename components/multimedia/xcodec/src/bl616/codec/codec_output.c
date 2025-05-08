@@ -125,9 +125,9 @@ static void _auo_recv(auo_ch_t *context)
     if ((wi % 32 !=0) ||(ri %32 !=0)) {
         user_log("wi:%d,ri:%d\r\n", wi,ri);
     }
-    
-    /* ringbuffer is empty */
-    if(0 == mringbuffer_data_len(context->ringbuffer)) {
+    /* dma irq is trigger，per_node_size is Consumed, but ringbuffer read_index not move now ,so mringbuffer_data_len() <= context->per_node_size, means ringbuffer empty */
+    ret = mringbuffer_data_len(context->ringbuffer); 
+    if((context->per_node_size > ret) || (context->per_node_size == ret)) {
         memset(context->ringbuffer->buffer_ptr, 0, context->ringbuffer->buffer_size);
         msp_cache_flush((uint32_t *)context->ringbuffer->buffer_ptr, context->ringbuffer->buffer_size);
         /* dma halt */
@@ -1034,6 +1034,10 @@ uint32_t auo_write(auo_ch_t *context, const void *data, uint32_t size)
     return ret;
 }
 #else
+
+#ifdef CONFIG_XCODEC_OUTPUT_CACHE
+#define CACHE_SIZE  (320*10)
+#endif
 uint32_t auo_write(auo_ch_t *context, const void *data, uint32_t size)
 {
     uint32_t ret = 0;
@@ -1041,25 +1045,54 @@ uint32_t auo_write(auo_ch_t *context, const void *data, uint32_t size)
     user_log("mringbuffer_put_fflush_cache %d\r\n", size);
     msp_mutex_lock(&(context->mutex), MSP_WAIT_FOREVER);
     
+#ifdef CONFIG_XCODEC_OUTPUT_CACHE
+    static uint32_t cache_total = 0;
+    static uint32_t cache_flag = 0;
+#endif
     irq_stat = bflb_irq_save();    
     if (context->dma->halt_flag) {
-        mringbuffer_reset(context->ringbuffer);
+#ifdef CONFIG_XCODEC_OUTPUT_CACHE
+        if (!cache_flag)
+#endif
+        {
+            mringbuffer_reset(context->ringbuffer);
+        }
     }
     ret = mringbuffer_put_fflush_cache(context->ringbuffer,
         (uint8_t *)data, size,
         msp_cache_flush);
-    
-    if (context->dma->halt_flag) {
 
+    if (context->dma->halt_flag) {
+#ifdef CONFIG_XCODEC_OUTPUT_CACHE
+        cache_flag = 1;
+        cache_total += size;
+        if (cache_total >= CACHE_SIZE) {
+            cache_total = 0;
+            cache_flag = 0;
+            msp_DMA_LLI_Update(context->ctrl_id, context->ch_id, (uint32_t)(&(context->dma->node[0].dma_cfg)));
+            msp_DMA_Request_Enable(context->ctrl_id, context->ch_id);
+            context->dma->halt_flag = 0;
+        }
+#else
         msp_DMA_LLI_Update(context->ctrl_id, context->ch_id, (uint32_t)(&(context->dma->node[0].dma_cfg)));
         msp_DMA_Request_Enable(context->ctrl_id, context->ch_id);
         context->dma->halt_flag = 0;
+#endif
     }
     bflb_irq_restore(irq_stat);
 
     if (0 == context->st) {
+#ifdef CONFIG_XCODEC_OUTPUT_CACHE
+         cache_total += size;
+         if (cache_total >= CACHE_SIZE) {
+            cache_total = 0;
+            context->st = 1;
+            _auo_hw_start(context);
+         }
+#else
         context->st = 1;
         _auo_hw_start(context);
+#endif
         // fixme for nosie at startup
     }
 

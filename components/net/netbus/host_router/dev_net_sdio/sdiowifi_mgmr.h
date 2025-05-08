@@ -64,4 +64,13 @@ int sdiowifi_update_tx_credit(struct sdiowifi_tx_buf *tb);
  */
 int sdiowifi_mgmr_ps_prepare(void);
 
+/**
+ * @brief Retrieve the IP address of the SDIO Ethernet.
+ *
+ * @param NULL
+ *
+ * @RETURN 0 ON SUCCESS, -1 on failure
+ */
+int sdio_mgmr_sdioeth_ip4_addr_get(uint32_t *addr, uint32_t *mask, uint32_t *gw, uint32_t *dns);
+
 #endif /* __SDIOWIFI_MGMR_H__ */

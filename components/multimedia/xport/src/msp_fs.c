@@ -19,6 +19,7 @@ typedef enum {
     FS_UNKNOW = 0,
     FS_FATFS,
     FS_ROMFS,
+    FS_LTFS,
 } FS_TYPE;
 
 int get_fs_type(const char *path)
@@ -27,6 +28,8 @@ int get_fs_type(const char *path)
         return FS_ROMFS;
     } else if (0 == strncmp(path, "/sd", 3)) {
         return FS_FATFS;
+    } else if (0 == strncmp(path, "/ltfs", 5)) {
+        return FS_LTFS;
     } else {
         return FS_UNKNOW;
     }
@@ -50,6 +53,12 @@ int msp_open(const char *path, int flags)
         case FS_ROMFS:
 #if defined(CONFIG_ROMFS) && CONFIG_ROMFS
             return msp_romfs_open(path, msp_romfs_flags(flags));
+#else
+            return ret;
+#endif
+        case FS_LTFS:
+#if defined(CONFIG_LTFS) && CONFIG_LTFS
+            return msp_ltfs_open(path, msp_ltfs_flags(flags));
 #else
             return ret;
 #endif
@@ -79,6 +88,12 @@ int msp_stat(const char *path, struct stat *st)
 #else
             return ret;
 #endif
+        case FS_LTFS:
+#if defined(CONFIG_LTFS) && CONFIG_LTFS
+            return msp_ltfs_stat(path, st);
+#else
+            return ret;
+#endif
         default:
             return ret;
     }
@@ -102,6 +117,12 @@ int msp_read(const char *path, int fd, void *buf, size_t nbytes)
         case FS_ROMFS:
 #if defined(CONFIG_ROMFS) && CONFIG_ROMFS
             return msp_romfs_read(fd, buf, nbytes);
+#else
+            return ret;
+#endif
+        case FS_LTFS:
+#if defined(CONFIG_LTFS) && CONFIG_LTFS
+            return msp_ltfs_read(fd, buf, nbytes);
 #else
             return ret;
 #endif
@@ -138,6 +159,12 @@ int msp_close(const char *path, int fd)
 #else
             return ret;
 #endif
+        case FS_LTFS:
+#if defined(CONFIG_LTFS) && CONFIG_LTFS
+            return msp_ltfs_close(fd);
+#else
+            return ret;
+#endif
         default:
             return ret;
     }
@@ -161,6 +188,12 @@ int msp_lseek(const char *path, int fd, off_t offset, int whence)
         case FS_ROMFS:
 #if defined(CONFIG_ROMFS) && CONFIG_ROMFS
             return msp_romfs_lseek(fd, offset, whence);
+#else
+            return ret;
+#endif
+        case FS_LTFS:
+#if defined(CONFIG_LTFS) && CONFIG_LTFS
+            return msp_ltfs_lseek(fd, offset, whence);
 #else
             return ret;
 #endif

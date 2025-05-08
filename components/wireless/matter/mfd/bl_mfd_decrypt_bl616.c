@@ -35,7 +35,7 @@
   */
 #include BL_MFD_PLAT_H
 
-bool bl_mfd_decrypt(uint8_t *p, uint32_t len, uint32_t *pIv)
+bool bl_mfd_decrypt(uint8_t *p, uint32_t len, uint8_t *pout, uint32_t *pIv)
 {
     struct bflb_device_s *aes;
 
@@ -48,12 +48,16 @@ bool bl_mfd_decrypt(uint8_t *p, uint32_t len, uint32_t *pIv)
 
     bflb_aes_init(aes);
     bflb_aes_set_mode(aes, AES_MODE_CBC);
-    bflb_aes_set_hwkey(1);
     bflb_aes_setkey(aes, NULL, 128);
-    bflb_aes_decrypt(aes, p, (uint8_t*)pIv, p, len);
+    bflb_aes_select_hwkey(aes, 1, 0);
+
+    bflb_l1c_dcache_clean_all();
+    bflb_l1c_dcache_disable();
+    int iret = bflb_aes_decrypt(aes, p, (uint8_t*)pIv, pout, len);
+    bflb_l1c_dcache_enable();
 
     bflb_aes_deinit(aes);
     bflb_group0_release_aes_access(aes);
 
-    return true;
+    return 0 == iret;
 }

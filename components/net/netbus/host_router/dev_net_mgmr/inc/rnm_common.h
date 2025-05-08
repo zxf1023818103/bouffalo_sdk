@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __RNM_COMMON_H__
+#define __RNM_COMMON_H__
 
 #include <stdint.h>
 #include <rnm_msg.h>
@@ -32,7 +33,7 @@ enum {
     RNM_OUTPUT_FN_TIMEOUT,
     RNM_OUTPUT_FN_PEER_NOT_READY,
     RNM_OUTPUT_FN_ERROR_OTHER,
-} rnm_output_return_value;
+};
 
 /**
  * @brief  Callback used to send RNM messages.
@@ -96,3 +97,6 @@ int rnm_statistic_dump(const rnm_statistic_t *stat, rnm_stat_scr_ctr_desc_t *sc_
 #ifdef __cplusplus
 }
 #endif
+
+#endif
+

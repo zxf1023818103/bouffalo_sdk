@@ -2,7 +2,7 @@
 #define __BL616_LP_H__
 #include <stdint.h>
 
-#if (BL_WIFI_LP_FW == 1)
+#ifdef BL_WIFI_LP_FW
 extern uint64_t (*shared_cpu_get_mtimer_counter)(void);
 extern void (*shared_arch_delay_ms)(uint32_t);
 extern void (*shared_arch_delay_us)(uint32_t);
@@ -14,13 +14,8 @@ extern int32_t (*shared_aon_set_ldo11_soc_sstart_delay)(uint32_t);
 extern int32_t (*shared_pds_default_level_config)(uint32_t*, uint32_t);
 #endif
 
-#ifndef LP_FW_START_ADDR
-#define LP_FW_START_ADDR          0x63026800//0x68012800
-#endif
-
 #define IOT2LP_PARA_ADDR          0x20010400
-#define LP_FW_MAX_SIZE            23 * 1024
-
+// #define LP_FW_MAX_SIZE            30 * 1024
 
 #define iot2lp_para               ((iot2lp_para_t *)IOT2LP_PARA_ADDR)
 #define LPFW_STATIC_VAL_ADDR      (iot2lp_para->lpfw_static_val)
@@ -47,6 +42,8 @@ extern int32_t (*shared_pds_default_level_config)(uint32_t*, uint32_t);
 #define HBN_SYS_RESET_REASON_CHK  (iot2lp_para->reset_keep.reset_reason_chk)
 
 #define BEACON_DATA_RATE          (iot2lp_para->beacon_leg_rate)
+
+// #define LPFW_WIFI_RX_BUFF         (iot2lp_para->wifi_rx_buff)
 
 #define PDS_WAKEUP_MINI_LIMIT_US  (1220)
 #define PDS_WAKEUP_MINI_LIMIT_CNT (40)
@@ -104,17 +101,67 @@ typedef struct {
     lp_fw_constants_t lpfw_constants;
 } lp_fw_static_variable_t;
 
+/* iot2lp_para record info (internal) */
+struct bl_lp_info_s {
+    /* bcn info */
+    uint32_t bcn_lpfw_recv_cnt;
+    uint32_t bcn_lpfw_loss_cnt;
+    uint32_t bcn_app_recv_cnt;
+    uint32_t bcn_app_loss_cnt;
+    /* time info */
+    uint64_t time_record_start_rtc_cnt;
+    uint64_t time_total_rtc_cnt;
+    uint64_t time_sleep_pds_rtc_cnt;
+    uint64_t time_active_lpfw_rtc_cnt;
+    uint64_t time_active_app_rtc_cnt;
+};
+
+typedef struct {
+    uint8_t encrypt_type;
+    uint8_t xts_mode;
+    uint8_t r0_aes_en;
+    uint8_t r0_aes_hw_key_en;
+    uint8_t r0_aes_lock;
+    uint32_t r0_aes_iv[4];
+    uint32_t r0_aes_start;
+    uint32_t r0_aes_end;
+    uint8_t r1_aes_en;
+    uint8_t r1_aes_hw_key_en;
+    uint8_t r1_aes_lock;
+    uint32_t r1_aes_iv[4];
+    uint32_t r1_aes_start;
+    uint32_t r1_aes_end;
+    uint8_t r2_aes_en;
+    uint8_t r2_aes_hw_key_en;
+    uint8_t r2_aes_lock;
+    uint32_t r2_aes_iv[4];
+    uint32_t r2_aes_start;
+    uint32_t r2_aes_end;
+} lp_fw_sf_sec_t;
+
+typedef struct {
+    uint32_t tzc_ocram_tzsrg_ctrl;
+    uint32_t tzc_ocram_tzsrg_r0;
+    uint32_t tzc_ocram_tzsrg_r1;
+    uint32_t tzc_ocram_tzsrg_r2;
+    uint32_t tzc_sf_tzsrg_ctrl;
+    uint32_t tzc_sf_tzsrg_r0;
+    uint32_t tzc_sf_tzsrg_r1;
+    uint32_t tzc_sf_tzsrg_r2;
+    uint32_t tzc_sf_tzsrg_msb;
+} lp_fw_tzc_t;
+
 typedef struct {
     uint32_t pattern; /*0xAA5555AA*/
-    lp_fw_static_variable_t *lpfw_static_val;
+    lp_fw_static_variable_t* lpfw_static_val;
     /* flash recovery */
     uint32_t mcu_sts;
     void *flash_cfg;
+    void *flash_io_cs_clk_delay_cfg;
     uint32_t flash_jdec_id;
-    uint32_t encrypt_type;
-    uint32_t xts_mode;
+    lp_fw_sf_sec_t *sec_cfg;
+    lp_fw_tzc_t *tzc_cfg;
     uint32_t img_len;
-    uint8_t aesiv[16];
     uint8_t flash_clk;
     uint8_t flash_clk_div;
     uint8_t do_xip_recovery;
@@ -127,7 +174,7 @@ typedef struct {
     uint8_t bssid[6];
     uint8_t local_mac[6];
     uint32_t beacon_interval_tu; /* beacon interval tu */
-    uint8_t* wifi_rx_buff;
+    uint8_t* wifi_rx_buff; /* not used */
     /* system para */
     uint32_t wakeup_flag;
     uint32_t flash_offset;
@@ -178,6 +225,7 @@ typedef struct {
     int32_t bcn_loss_level;
     int32_t bcn_loss_loop_start;
     int32_t bcn_loss_level_max;
+    int8_t  bcn_target_level;
 
     /* rtc32k_trim */
     uint8_t rc32k_auto_cal_en;
@@ -188,11 +236,9 @@ typedef struct {
     uint64_t last_rc32trim_stamp_beacon_us;
     int32_t rc32k_fr_ext;
     int32_t rtc32k_error_ppm; /*  */
-    /* other */
-    uint32_t lpfw_recv_cnt;
-    uint32_t lpfw_loss_cnt;
-    uint32_t app_recv_cnt;
-    uint32_t app_loss_cnt;
+
+    /* iot2lp_para record info (internal) */
+    struct bl_lp_info_s *lp_info;
 
     /* RTC-UTC Timestamp */
     uint32_t last_ntp_sync_timestamp;
@@ -235,15 +281,17 @@ typedef int (*bl_lp_cb_t)(void *arg);
 #define BL_PDS_CNT_TO_MS(cnt) ((cnt) * 125 / 4096)  /* cnt / 32768 * 1000 */
 
 /*  */
-#define PROTECT_AF_MS         (7)
-#define PROTECT_BF_MS         (4)
+#define PROTECT_AF_MS         (10)
+#define PROTECT_BF_MS         (5)
 
 #define BL_DTIM_NUM           (10)
 
 typedef struct {
     uint8_t tim_wakeup_en : 1; /* 1: enable tim wakeup */
     uint8_t lpfw_copy     : 1; /* copy lpfw or not */
+    uint8_t lpfw_verify   : 1; /* verify lpfw or not */
     uint8_t channel;
+    int8_t rssi;
     uint8_t bssid[6];
     uint8_t mac[6];
     uint8_t dtim_num;
@@ -446,12 +494,50 @@ typedef struct {
     void (*wakeup_acomp_callback)(uint32_t wake_up_acomp);
 } bl_lp_soft_irq_callback_t;
 
+/******************** lp info ********************/
 /* statistics info */
 typedef struct {
     int32_t lpfw_wakeup_cnt;
     uint32_t lpfw_recv_cnt;
     uint32_t lpfw_loss_cnt;
-} bl_lp_statistics_t;
+
+    uint64_t time_total_us;
+    uint64_t sleep_pds_us;
+    uint64_t active_lpfw_us;
+    uint64_t active_app_us;
+} bl_lp_info_t;
+
+/* internal api */
+void bl_lp_time_info_update_app(void);
+void bl_lp_time_info_update_pds(void);
+void bl_lp_time_info_update_lpfw(void);
+/* user api */
+void bl_lp_info_get(bl_lp_info_t *lp_info);
+void bl_lp_info_clear(void);
+/******************** lp info end ********************/
+
+/******************** lp fw ********************/
+typedef struct {
+    uint32_t jump_code;
+    uint32_t magic_code;
+    uint32_t lpfw_memory_start;
+    uint32_t lpfw_code_end;
+    uint32_t lpfw_memory_end;
+    char lpfw_version_str[];
+} bl_lp_fw_info_t;
+
+extern uint32_t __lpfw_load_addr[];     /* ld symbol */
+extern uint32_t __lpfw_share_start[];   /* ld symbol */
+extern uint32_t __lpfw_share_used[];    /* ld symbol */
+extern uint32_t __lpfw_share_end[];     /* ld symbol */
+
+bl_lp_fw_info_t *bl_lpfw_bin_get_info(void);
+int bl_lpfw_bin_check(void);
+char *bl_lpfw_bin_get_version_str(void);
+int bl_lpfw_ram_load(void);
+int bl_lpfw_ram_verify(void);
+
+/****************** lp fw end ******************/
 
 /* LP_HOOK */
 void lp_hook_pre_sys(void *) __attribute__((weak));
@@ -498,10 +584,7 @@ int bl_lp_get_bcn_delay_ready();
 
 /* bcn loss cfg */
 void bl_lp_fw_bcn_loss_cfg(lp_fw_bcn_loss_level_t *cfg_table, uint16_t table_num, uint16_t loop_start, uint16_t loss_max);
-
-/* bcn loss rate */
-int bl_lp_fw_bcn_loss_info_get(uint32_t *try_num, uint32_t *loss_num);
-int bl_lp_fw_bcn_loss_info_clear();
+void bl_lp_fw_bcn_loss_cfg_dtim_default(uint8_t dtim_num);
 
 /* bcn tpre cfg */
 void bl_lp_fw_bcn_tpre_cfg(int32_t tpre_us);

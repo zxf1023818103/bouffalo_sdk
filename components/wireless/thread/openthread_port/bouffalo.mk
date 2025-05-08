@@ -52,7 +52,8 @@ endif
 COMPONENT_SRCS += ot_uart.c
 
 ifeq ($(CONFIG_OTBR),1)
-COMPONENT_SRCS += otbr_lwip.c
+    COMPONENT_SRCS += otbr_lwip.c
+    CPPFLAGS += -DOPENTHREAD_BORDER_ROUTER
 endif
 
 COMPONENT_OBJS := $(patsubst %.cpp,%.o, $(filter %.cpp,$(COMPONENT_SRCS))) $(patsubst %.c,%.o, $(filter %.c,$(COMPONENT_SRCS))) $(patsubst %.S,%.o, $(filter %.S,$(COMPONENT_SRCS)))
@@ -79,11 +80,6 @@ endif
 
 ifeq ($(CONFIG_USE_PSRAM), 1)
     CPPFLAGS += -DCFG_USE_PSRAM=1
-endif
-
-ifeq ($(CONFIG_OTBR),1)
-    COMPONENT_SRCS += otbr_lwip.c
-    CFLAGS += -DOPENTHREAD_BORDER_ROUTER
 endif
 
 CPPFLAGS += -D$(CONFIG_CHIP_NAME)

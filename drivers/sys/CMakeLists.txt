@@ -37,7 +37,11 @@ elseif("${CHIP}" STREQUAL "bl628")
 endif()
 
 if(CONFIG_PM)
-    sdk_add_compile_definitions(-DCONFIG_PM)
+    sdk_add_compile_definitions(-D CONFIG_PM)
+endif()
+
+if(CONFIG_LPAPP)
+    sdk_add_compile_definitions(-D CONFIG_LPAPP)
 endif()
 
 sdk_add_include_directories(${CHIP})

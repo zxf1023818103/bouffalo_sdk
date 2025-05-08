@@ -155,7 +155,7 @@ void bt_enable_cb(int err)
         bt_get_local_public_address(&bt_addr);
         printf("BD_ADDR:(MSB)%02x:%02x:%02x:%02x:%02x:%02x(LSB) \r\n",
                bt_addr.a.val[5], bt_addr.a.val[4], bt_addr.a.val[3], bt_addr.a.val[2], bt_addr.a.val[1], bt_addr.a.val[0]);
-
+        bt_set_name("blsync");
         blsync_init(0);
         // start advertising
         ble_start_adv();

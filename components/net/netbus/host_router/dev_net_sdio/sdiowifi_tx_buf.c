@@ -41,17 +41,29 @@ typedef struct {
     uint32_t  txpbuf_payload[(TX_PBUF_PAYLOAD_LEN + 3) / 4];
 } sdio_txbuf_payload_t;
 
+#ifdef CONFIG_BOUFFALO_SDK
+#include "bflb_core.h"
+#if defined(SDIO_RX_MAX_PORT_NUM) && (SDIO_RX_MAX_PORT_NUM == 8)
+#define SDIO_TX_NORMAL_BUFFER_COUNT (11)
+#elif defined(SDIO_RX_MAX_PORT_NUM) && (SDIO_RX_MAX_PORT_NUM == 4)
+#define SDIO_TX_NORMAL_BUFFER_COUNT (15)
+#endif
+sdio_txbuf_payload_t ATTR_NOCACHE_NOINIT_LPFW_SHARE __ALIGNED(32) g_txpbuf_payload_normal[SDIO_TX_NORMAL_BUFFER_COUNT];
+
+#else
 /* 38kb ram, sdio rx buffer used 16kb, left ram used as tx buffer,calculate: 11 = (38 * 1024 - 16 * 1024) / (((TX_PBUF_PAYLOAD_LEN + 3)/4) * 4) */
-#if defined (SDIO_RX_MAX_PORT_NUM) && (SDIO_RX_MAX_PORT_NUM == 8)
+#if defined(SDIO_RX_MAX_PORT_NUM) && (SDIO_RX_MAX_PORT_NUM == 8)
 #define SDIO_TX_NORMAL_BUFFER_COUNT (11)
 #define TXBUF_PAYLOAD_START_ADDR    (0x2302A800)
-#elif defined (SDIO_RX_MAX_PORT_NUM) && (SDIO_RX_MAX_PORT_NUM == 4)
+#elif defined(SDIO_RX_MAX_PORT_NUM) && (SDIO_RX_MAX_PORT_NUM == 4)
 #define SDIO_TX_NORMAL_BUFFER_COUNT (15)
 #define TXBUF_PAYLOAD_START_ADDR    (0x23028800)
 #endif
 
-static tx_pbuf_t            g_txpbuf_context[SDIO_TX_NORMAL_BUFFER_COUNT];
 static sdio_txbuf_payload_t *g_txpbuf_payload_normal = (sdio_txbuf_payload_t *)ALIGN_PTR_HIGH(TXBUF_PAYLOAD_START_ADDR);
+#endif
+
+static tx_pbuf_t g_txpbuf_context[SDIO_TX_NORMAL_BUFFER_COUNT];
 
 struct sdiowifi_tx_buf *s_tb_printf = NULL;
 
@@ -114,6 +126,10 @@ int sdiowifi_tx_buf_lpmem_register(struct sdiowifi_tx_buf *tb)
         utils_list_push_back(&tb->buf_list, (struct utils_list_hdr *)(&(g_txpbuf_context[i])));
         // ++free_size
         ++tb->free_size;
+        HR_LOGD("lpmem_register ctx:%p, pldbuf:%p, free_size:%d\r\n",
+                (struct utils_list_hdr *)(&(g_txpbuf_context[i])),
+                g_txpbuf_context[i].payload_buf,
+                tb->free_size);
     }
 
     // update window_size
@@ -162,6 +178,10 @@ int sdiowifi_tx_buf_mem_register(struct sdiowifi_tx_buf *tb, void *mem, size_t s
         utils_list_push_back(&tb->buf_list, (struct utils_list_hdr *)(&(tx_buffer_ctx[i])));
         // ++free_size
         ++tb->free_size;
+        HR_LOGD("mem_register ctx:%p, pldbuf:%p, free_size:%d\r\n",
+                (struct utils_list_hdr *)(&(tx_buffer_ctx[i])),
+                tx_buffer_ctx[i].payload_buf,
+                tb->free_size);
     }
     
     // update window size.

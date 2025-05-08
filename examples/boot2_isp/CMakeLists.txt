@@ -7,18 +7,18 @@ find_package(bouffalo_sdk REQUIRED HINTS $ENV{BL_SDK_BASE})
 sdk_add_include_directories(.)
 
 target_sources(app PRIVATE
-				bflb_eflash_loader_interface.c
-				bflb_eflash_loader_cmds.c
-				bflb_eflash_loader_uart.c
-				blsp_boot_decompress.c
-				blsp_boot_parser.c
-				blsp_common.c
-				blsp_media_boot.c
-				blsp_port.c
-				blsp_ram_image_boot.c
-				partition.c
-				${CMAKE_SOURCE_DIR}/port/${CHIP}/bflb_port_boot2.c
-				)
+                bflb_eflash_loader_interface.c
+                bflb_eflash_loader_cmds.c
+                bflb_eflash_loader_uart.c
+                blsp_boot_decompress.c
+                blsp_boot_parser.c
+                blsp_common.c
+                blsp_media_boot.c
+                blsp_port.c
+                blsp_ram_image_boot.c
+                partition.c
+                ${CMAKE_SOURCE_DIR}/port/${CHIP}/bflb_port_boot2.c
+                )
 
 
 if("${CHIP}" STREQUAL "bl616")
@@ -31,6 +31,9 @@ endif()
 
 if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/port/${CHIP})
 include_directories(${CMAKE_SOURCE_DIR}/port/${CHIP})
+if(EXISTS "${CMAKE_SOURCE_DIR}/port/${CHIP}/CMakeLists.txt")
+    add_subdirectory(${CMAKE_SOURCE_DIR}/port/${CHIP})
+endif()
 else()
 message(FATAL_ERROR "${CMAKE_SOURCE_DIR}/port/${CHIP} is not exist")
 endif()
@@ -46,6 +49,11 @@ sdk_add_compile_definitions(-DBFLB_BOOT2)
 sdk_add_compile_definitions(-DCONFIG_TRAP_DUMP_DISABLE)
 message(${CONFIG_BOOT2_VER})
 
+if(CONFIG_BOOT2)
+    sdk_add_compile_definitions(-DCONFIG_BOOT2)
+endif()
+sdk_add_compile_definitions(-DBOOT2_ANTI_ROLLBACK_VER=${CONFIG_BOOT2_ANTI_ROLLBACK_VER})
+
 if((${CHIP} STREQUAL "bl602"))
     sdk_add_compile_definitions(-DCHIP_BL602)
 endif()
@@ -60,21 +68,21 @@ endif()
 
 if((${CHIP} STREQUAL "bl808"))
     sdk_add_compile_definitions(-DCHIP_BL808)
-	sdk_add_compile_definitions(-DCONFIG_SUPPORT_UART_CLOCK_GET_ONLY)
-	sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_PMP_EXCEPT_PMPADDR0)
-	sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_CLOCK_GET_EXCEPT_SYSTEM_CLOCK)
-	sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_UHS_EXCEPT_40M)
-	sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_PSRAM_FRQ_EXCEPT_2000)
-	sdk_add_compile_definitions(-D CONIFG_DISABLE_INTERRUPT_BEHADN_UART0)
-	sdk_add_compile_definitions(-D CONIFG_DISABLE_OTHER_CORE_EXCEPT_M0)
-	sdk_add_compile_definitions(-D CONFIG_NOT_SUPPORT_0X13_0X14_0X15_0X16_FLASH)
+    sdk_add_compile_definitions(-DCONFIG_SUPPORT_UART_CLOCK_GET_ONLY)
+    sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_PMP_EXCEPT_PMPADDR0)
+    sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_CLOCK_GET_EXCEPT_SYSTEM_CLOCK)
+    sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_UHS_EXCEPT_40M)
+    sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_PSRAM_FRQ_EXCEPT_2000)
+    sdk_add_compile_definitions(-D CONIFG_DISABLE_INTERRUPT_BEHADN_UART0)
+    sdk_add_compile_definitions(-D CONIFG_DISABLE_OTHER_CORE_EXCEPT_M0)
+    sdk_add_compile_definitions(-D CONFIG_NOT_SUPPORT_0X13_0X14_0X15_0X16_FLASH)
 endif()
 
 if((${CHIP} STREQUAL "bl606p"))
     sdk_add_compile_definitions(-DCHIP_BL606P)
-	sdk_add_compile_definitions(-DCONFIG_SUPPORT_UART_CLOCK_GET_ONLY)
-	sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_CLOCK_GET_EXCEPT_SYSTEM_CLOCK)
-	sdk_add_compile_definitions(-D CONFIG_NOT_SUPPORT_0X13_0X14_0X15_0X16_FLASH)
+    sdk_add_compile_definitions(-DCONFIG_SUPPORT_UART_CLOCK_GET_ONLY)
+    sdk_add_compile_definitions(-D CONIFG_DISABLE_ALL_CLOCK_GET_EXCEPT_SYSTEM_CLOCK)
+    sdk_add_compile_definitions(-D CONFIG_NOT_SUPPORT_0X13_0X14_0X15_0X16_FLASH)
 endif()
 
 if((${CHIP} STREQUAL "bl616"))

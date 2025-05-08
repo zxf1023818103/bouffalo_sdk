@@ -5,11 +5,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "FreeRTOS.h"
+#include "task.h"
 
 /**
  * Type by which tasks are referenced.
  */
-typedef void *        rtos_task_t;
+typedef TaskHandle_t  rtos_task_t;
 
 
 

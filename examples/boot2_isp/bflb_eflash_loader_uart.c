@@ -73,7 +73,7 @@ void ATTR_TCM_SECTION uart_isr(int irq, void *arg)
 
         uint8_t *buf=(uint8_t *)g_eflash_loader_readbuf[g_rx_buf_index];
 
-        if (g_rx_buf_index < BFLB_EFLASH_LOADER_READBUF_SIZE) {
+        if (g_rx_buf_len < BFLB_EFLASH_LOADER_READBUF_SIZE) {
             g_rx_buf_len+=uart_read_all_data(buf+g_rx_buf_len,
                                         BFLB_EFLASH_LOADER_READBUF_SIZE-g_rx_buf_len);
         } else {
@@ -85,7 +85,7 @@ void ATTR_TCM_SECTION uart_isr(int irq, void *arg)
     if (intstatus & UART_INTSTS_RTO) {
         uint8_t *buf=(uint8_t *)g_eflash_loader_readbuf[g_rx_buf_index];
 
-        if (g_rx_buf_index < BFLB_EFLASH_LOADER_READBUF_SIZE) {
+        if (g_rx_buf_len < BFLB_EFLASH_LOADER_READBUF_SIZE) {
             g_rx_buf_len+=uart_read_all_data(buf+g_rx_buf_len,
                                         BFLB_EFLASH_LOADER_READBUF_SIZE-g_rx_buf_len);
         } else {
@@ -209,7 +209,7 @@ int32_t ATTR_TCM_SECTION bflb_eflash_loader_uart_handshake_poll(uint32_t timeout
         return -1;
     }
 
-#if defined(CHIP_BL606P) || defined(CHIP_BL808) || defined(CHIP_BL616) || defined(CHIP_WB03)
+#if defined(CHIP_BL606P) || defined(CHIP_BL808) || defined(CHIP_BL616) || defined(CHIP_WB03) || defined(CHIP_BL702L)
     /*receive shake hanad signal*/
     bflb_eflash_loader_usart_if_send((uint8_t *)"Boot2 ISP Ready", sizeof("Boot2 ISP Ready")-1);
     bflb_mtimer_delay_ms(2);

@@ -42,7 +42,7 @@
 #include "bflb_port_boot2.h"
 
 #define MFG_START_REQUEST_OFFSET HAL_BOOT2_MFG_START_REQUEST_OFFSET
-#define BLSP_BOOT2_XIP_BASE      BL_FLASH_XIP_BASE
+#define BLSP_BOOT2_XIP_BASE      HAL_BOOT2_FLASH_XIP_BASE
 #define BLSP_BOOT2_ROLLBACK
 #define BLSP_BOOT2_SUPPORT_DECOMPRESS          HAL_BOOT2_SUPPORT_DECOMPRESS
 #define BLSP_BOOT2_SUPPORT_USB_IAP             HAL_BOOT2_SUPPORT_USB_IAP
@@ -90,6 +90,7 @@ extern struct bflb_device_s *uartx;
 extern struct bflb_sha256_ctx_s ctx_sha256;
 extern struct bflb_device_s *console;
 extern void bflb_uart_set_console(struct bflb_device_s *dev);
+extern const blverinf_t boot2_ver;
 
 #define BOOT2_MSG(a, ...)            blsp_boot2_printf(a, ##__VA_ARGS__)
 #define BOOT2_MSG_WAR(a, ...)        blsp_boot2_printf(a, ##__VA_ARGS__)

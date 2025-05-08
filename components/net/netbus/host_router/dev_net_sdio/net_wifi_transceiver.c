@@ -5,7 +5,8 @@
 //#include <bl_wifi.h>
 #include <wifi_mgmr_ext.h>
 #include <net_pkt_filter.h>
-
+#include <net_def.h>
+#include <sdio_pkt_hooks.h>
 #include <sdiowifi_mgmr.h>
 #include <sdiowifi_config.h>
 #include <trcver_sdio.h>
@@ -24,10 +25,28 @@ struct bl_custom_tx_cfm {
 };
 int bl_wifi_eth_tx(struct pbuf *p, bool is_sta, struct bl_custom_tx_cfm *custom_cfm);
 
+#ifdef CFG_DUAL_ETH
+int sdio_net_if_input(struct pbuf *p, inet_if_t *net_if, bool is_sta)
+{
+    if (net_if->input(p, net_if))
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+extern inet_if_t sdio_eth_netif;
+#endif
+
 static void handle_eth_frame_to_wifi_tx(sdiowifi_mgmr_t *sdm, struct pbuf *p, bool is_sta)
 {
+#ifdef CFG_DUAL_ETH
+    sdio_net_if_input(p, &sdio_eth_netif, is_sta);
+#else
     bl_wifi_eth_tx(p, is_sta, &(struct bl_custom_tx_cfm){NULL, NULL});
     pbuf_free(p);
+#endif
 }
 
 static void handle_sta_ap_to_wifi_tx(sdiowifi_mgmr_t *sdm, const uint8_t *frame, uint16_t frame_len, bool is_sta)
@@ -127,7 +146,12 @@ static int bflb_net_wifi_trcver_write_mac(net_wifi_trcver_t *trcver)
 
 #ifdef CFG_BL616
     // FIXME
+#ifdef CFG_DUAL_ETH
+    extern void sdioeth_netif_mac_get(uint8_t *mac);
+    sdioeth_netif_mac_get(mac);
+#else
     wifi_mgmr_sta_mac_get(mac);
+#endif
 #else
     bl_wifi_mac_addr_get(mac);
 #endif
@@ -265,6 +289,23 @@ static void *eth_input_hook(bool is_sta, void *pkt, void *arg)
     return ret;
 }
 
+#ifdef CFG_DUAL_ETH
+static int sdio_eth_output_hook(bool is_sta, void *pkt, void *arg)
+{
+    net_wifi_trcver_t *trcver = (net_wifi_trcver_t *)arg;
+    (void)trcver;
+
+    struct pbuf *p = (struct pbuf *)pkt;
+    // XXX distinguish STA/AP
+    int ret = bl_dual_stack_peer_input(p, NULL);
+    if (ret) {
+        printf("RX FRM swdesc failed, drop\r\n");
+    }
+
+    return ret;
+}
+#endif
+
 static void *eth_output_hook(bool is_sta, void *pkt, void *arg)
 {
     net_wifi_trcver_t *trcver = (net_wifi_trcver_t *)arg;
@@ -298,6 +339,9 @@ extern void bl_pkt_eth_input_hook_register(bl_pkt_eth_input_hook_cb_t cb, void *
 
 static void register_pkt_hooks(net_wifi_trcver_t *trcver)
 {
+#ifdef CFG_DUAL_ETH
+    bl_sdio_pkt_eth_output_hook_register(sdio_eth_output_hook, trcver);
+#else
 #ifndef SDIO_TEST_NO_HOST
     bl_pkt_eth_input_hook_register(eth_input_hook, trcver);
 
@@ -305,6 +349,7 @@ static void register_pkt_hooks(net_wifi_trcver_t *trcver)
     // Leave output hook here as it may be added back.
     (void)eth_output_hook;
     /* bl_pkt_eth_output_hook_register(eth_output_hook, trcver); */
+#endif
 #endif
 }
 

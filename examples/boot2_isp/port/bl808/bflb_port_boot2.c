@@ -187,6 +187,7 @@ uint32_t hal_boot2_custom(void *custom_param)
 void hal_boot2_get_efuse_cfg(boot2_efuse_hw_config *efuse_cfg)
 {
     uint32_t i = 0;
+   uint32_t sign_slot_offset = 0;
     struct boot_efuse_sw_cfg0_t sw_cfg0;
 
 
@@ -209,6 +210,14 @@ void hal_boot2_get_efuse_cfg(boot2_efuse_hw_config *efuse_cfg)
 
     for (i = 0; i < HAL_BOOT2_CPU_GROUP_MAX; i++) {
         efuse_cfg->sign[i] = ((struct boot_efuse_sw_cfg0_t)sw_cfg0).sign_cfg;
+        if (i == 0) {
+            sign_slot_offset = EF_DATA_0_EF_KEY_SLOT_0_W0_OFFSET;
+        } else if (i == 1) {
+            sign_slot_offset = EF_DATA_1_EF_KEY_SLOT_8_W0_OFFSET;
+        }
+
+        /* get public key hash */
+        bflb_ef_ctrl_read_direct(NULL, sign_slot_offset, (uint32_t *)efuse_cfg->pk_hash_cpu[i], HAL_BOOT2_PK_HASH_SIZE / 4, 1);
     }
     for (i = 1; i < HAL_BOOT2_CPU_GROUP_MAX; i++) {
         efuse_cfg->encrypted[i] = EF_CTRL_SF_AES_NONE;
@@ -226,11 +235,6 @@ void hal_boot2_get_efuse_cfg(boot2_efuse_hw_config *efuse_cfg)
     //EF_Ctrl_Read_Chip_ID(efuse_cfg->chip_id);
     bflb_efuse_get_chipid(efuse_cfg->chip_id);
 
-    /* get public key hash */
-    //EF_Ctrl_Read_AES_Key(0, (uint32_t *)efuse_cfg->pk_hash_cpu0, HAL_BOOT2_PK_HASH_SIZE / 4);
-    bflb_ef_ctrl_read_direct(NULL, EF_DATA_0_EF_KEY_SLOT_0_W0_OFFSET, (uint32_t *)efuse_cfg->pk_hash_cpu0, HAL_BOOT2_PK_HASH_SIZE / 4, 1);
-    //EF_Ctrl_Read_AES_Key(8, (uint32_t *)efuse_cfg->pk_hash_cpu1, HAL_BOOT2_PK_HASH_SIZE / 4);
-    bflb_ef_ctrl_read_direct(NULL, EF_DATA_1_EF_KEY_SLOT_8_W0_OFFSET, (uint32_t *)efuse_cfg->pk_hash_cpu1, HAL_BOOT2_PK_HASH_SIZE / 4, 1);
 }
 
 /****************************************************************************/ /**
@@ -750,32 +754,4 @@ void hal_reboot_config(hal_reboot_cfg_t rbot)
             HBN_Set_Hand_Off_Config(0);
             break;
     }
-}
-
-/****************************************************************************/ /**
- * @brief  get anti rollback version
- *
- * @param  return version
- *
- * @return
- *
-*******************************************************************************/
-int32_t hal_get_app_version_from_efuse(uint8_t *version)
-{
-    return ERROR;
-}
-
-int32_t hal_set_app_version_to_efuse(uint8_t version)
-{
-    return ERROR;
-}
-
-int32_t hal_get_boot2_version_from_efuse(uint8_t *version)
-{
-    return ERROR;
-}
-
-int32_t hal_set_boot2_version_to_efuse(uint8_t version)
-{
-    return ERROR;
 }

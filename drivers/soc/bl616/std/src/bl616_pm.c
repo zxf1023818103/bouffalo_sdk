@@ -809,6 +809,12 @@ ATTR_TCM_SECTION void pm_hbn_mode_enter(enum pm_hbn_sleep_level hbn_level,
     /* To make it simple and safe*/
     __ASM volatile("csrc mstatus, 8");
 
+    /* Must Disable ADC, Otherwise, the current increase 1mA  */
+    /* adc disable */
+    tmpVal = BL_RD_REG(AON_BASE, AON_GPADC_REG_CMD);
+    tmpVal = BL_CLR_REG_BIT(tmpVal, AON_GPADC_GLOBAL_EN);
+    BL_WR_REG(AON_BASE, AON_GPADC_REG_CMD, tmpVal);
+
     bflb_irq_clear_pending(HBN_OUT0_IRQn);
     bflb_irq_clear_pending(HBN_OUT1_IRQn);
 
@@ -826,6 +832,9 @@ ATTR_TCM_SECTION void pm_hbn_mode_enter(enum pm_hbn_sleep_level hbn_level,
     }
 
     if (hbn_level >= PM_HBN_LEVEL_2) {
+        HBN_32K_Sel(0);
+        /* In HBN2 mode, xtal32k must be turned off, otherwise, the current will be high.  */
+        HBN_Power_Off_Xtal_32K();
         HBN_Power_Off_RC32K();
     } else {
         HBN_Keep_On_RC32K();
@@ -878,7 +887,6 @@ ATTR_TCM_SECTION void pm_hbn_mode_enter(enum pm_hbn_sleep_level hbn_level,
     BL_WR_REG(HBN_BASE, HBN_IRQ_CLR, 0);
 
     /* Enable HBN mode */
-    tmpVal = BL_RD_REG(HBN_BASE, HBN_CTL);
     tmpVal = BL_SET_REG_BIT(tmpVal, HBN_MODE);
     BL_WR_REG(HBN_BASE, HBN_CTL, tmpVal);
 

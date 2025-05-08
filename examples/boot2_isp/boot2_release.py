@@ -20,8 +20,8 @@ release_list = [
 [r'make clean;make CHIP=bl808  CPU_ID=m0 BOARD=bl808dk CONFIG_DEBUG=y',"bl808","debug"],
 [r'make clean;make CHIP=bl606p CPU_ID=m0 BOARD=bl606pdk CONFIG_DEBUG=n',"bl606p","release"],
 [r'make clean;make CHIP=bl606p CPU_ID=m0 BOARD=bl606pdk CONFIG_DEBUG=y',"bl606p","debug"],
-[r'make clean;make CHIP=bl616  CPU_ID=m0 BOARD=bl616dk CONFIG_DEBUG=n',"bl616","release"],
-[r'make clean;make CHIP=bl616  CPU_ID=m0 BOARD=bl616dk CONFIG_DEBUG=y',"bl616","debug"],
+[r'make clean;make CHIP=bl616  CPU_ID=m0 BOARD=bl616dk CONFIG_ANTI_ROLLBACK=y CONFIG_DEBUG=n',"bl616","release"],
+[r'make clean;make CHIP=bl616  CPU_ID=m0 BOARD=bl616dk CONFIG_ANTI_ROLLBACK=y CONFIG_DEBUG=y',"bl616","debug"],
 ]
 
 
@@ -50,24 +50,33 @@ def recreate_release_dir(dir):
         os.makedirs(dir)
 
 def boot2_release(cmd, ver):
-    output,err = subprocess.Popen(cmd[0] + r' CONFIG_BOOT2_VER=' + ver,stdout=subprocess.PIPE,shell=True).communicate()
-    if err==None:
-        print(output)
-    else:
-        print("Build error")
-        sys.exit()
+    print("Executing command:", cmd)
 
+    process = subprocess.Popen(
+        f"{cmd[0]} CONFIG_BOOT2_VER={ver}",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        text=True
+    )
+
+    output, err = process.communicate()
+
+    if process.returncode != 0:
+        print("Build error:", err.strip())
+        return False
+
+    print(output.strip())
+
+    target_dir = f'boot2_isp_{cmd[1]}_v{ver}'
     for root, dirs, files in os.walk("./build/build_out", topdown=False):
         for file in files:
-            if file.endswith(".bin"):
-                if cmd[1] in file:
-                    if "boot2_isp" in file:
-                        binfile = os.path.join(root, file)
-                        print(binfile)
-                        print('boot2_isp_' + cmd[1] + '_v' + ver + "/" + 'boot2_isp_' + cmd[2] + ".bin")
-                        shutil.copy(binfile, 'boot2_isp_' + cmd[1] + '_v' + ver + "/" + 'boot2_isp' + '_' + cmd[2] + ".bin")
-
-
+            if file.endswith(".bin") and cmd[1] in file and "boot2_isp" in file:
+                src = os.path.join(root, file)
+                dest = os.path.join(target_dir, f'boot2_isp_{cmd[2]}.bin')
+                shutil.copy(src, dest)
+                print(f"Copied: {src} -> {dest}\n")
+                return
 
 def get_release_ver():
 
@@ -96,8 +105,17 @@ if __name__ == '__main__' :
     ver = get_release_ver()
     print(ver)
 
+    failed_list = []
+
     for x in release_list:
         recreate_release_dir('boot2_isp_' + x[1] + '_v' + ver )
     for x in release_list:
-        boot2_release(x,ver)
-    print("release suss")
+        if boot2_release(x,ver) == False:
+            failed_list.append(x)
+
+    if len(failed_list) == 0:
+        print("release success!")
+    else:
+        print("release failed! failed list:")
+        for x in failed_list:
+            print('-',x[1],x[2])

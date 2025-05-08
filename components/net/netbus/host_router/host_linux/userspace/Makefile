@@ -1,6 +1,7 @@
 .PHONY: all clean
 
 all: blctl blctld
+all: qcctl qcctld tty_at_helper
 
 CC ?= gcc
 CFLAGS := -Wall -Wextra -O2 -g -pthread
@@ -15,6 +16,10 @@ blctl: $(BLCTL_OBJS) blctl_main.o
 blctld: $(BLCTL_OBJS) blctld_main.o
 	@$(info Linking $@)
 	@$(CC) $(CFLAGS) $(BLCTL_INCLUDE_DIRS) -o $@ $^
+
+tty_at_helper: tty_at_helper.o
+	@$(info Linking $@)
+	@$(CC) $(CFLAGS) -o $@ $^
 
 %.o: %.c
 	@$(info CC $@)

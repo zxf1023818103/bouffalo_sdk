@@ -1,13 +1,15 @@
 #ifndef __WIFI_MGMR_EXT_H_
 #define __WIFI_MGMR_EXT_H_
-#include "export/mac/mac_types.h"
+
+#include <stdint.h>
+#include <stdbool.h>
 
 #define MAX_FIXED_CHANNELS_LIMIT (14)
 #define MAX_AP_SCAN     50
 #define MGMR_SSID_LEN   32
 #define MGMR_KEY_LEN    64
 #define MGMR_BSSID_LEN  18
-#define MGMR_AKM_LEN    10
+#define MGMR_AKM_LEN    15
 
 /* WiFi async event */
 #define  EV_WIFI                  0x0002
@@ -36,6 +38,7 @@
 #define  CODE_WIFI_ON_EMERGENCY_MAC     23
 #define  CODE_WIFI_ON_EXIT_PS           24
 #define  CODE_WIFI_ON_GOT_IP6           25
+#define  CODE_WIFI_ON_SCAN_DONE_CONNECTING  31
 
 #define WIFI_EVENT_BEACON_IND_AUTH_OPEN            0
 #define WIFI_EVENT_BEACON_IND_AUTH_WEP             1
@@ -139,6 +142,12 @@ typedef struct wifi_mgmr_sta_connect_params {
     uint16_t duration;
     // conn scan probe req cnt
     uint16_t probe_cnt;
+    // Auth and Assoc timeout, in sec. 0, use default value
+    uint8_t auth_timeout;
+    // Timeout before EAPOL 1 after associtiated, in sec. 0, use default value
+    uint8_t eapol_1_timeout;
+    // Remaining EAPOL session timeout, in sec. 0, use default value
+    uint8_t eapol_rem_timeout;
 } wifi_mgmr_sta_connect_params_t;
 
 /// scan params
@@ -176,6 +185,8 @@ typedef struct wifi_mgmr_ap_params {
     uint8_t channel;
     /// Channel type (@ref mac_chan_bandwidth)
     uint8_t type;
+    /// use_ipcfg;
+    bool use_ipcfg;
     /// Whether use dhcpd
     bool use_dhcpd;
     /// dhcpd pool start
@@ -192,6 +203,8 @@ typedef struct wifi_mgmr_ap_params {
     bool hidden_ssid;
     /// whether enable isolation
     bool isolation;
+    /// Beacon interval in TU
+    int bcn_interval;
     /// Additional vendor specific elements for Beacon and Probe Response frames
     /// a hexdump of the raw information elements (id+len+payload for one or more elements),
     //  the maximum length supported is MAX_AP_VENDOR_ELEMENTS_LEN,
@@ -430,6 +443,18 @@ int wifi_mgmr_sta_channel_get(int *channel);
 int wifi_mgmr_sta_ssid_set(const char *ssid);
 
 /**
+ * wifi_mgmr_sta_ssid_get
+ * get sta mode ssid
+ * param:
+ *  param1 : ptr of ssid
+ * return:
+ *  0 : Success
+ *  -1 : Failed
+ *  Others is Failed
+ */
+int wifi_mgmr_sta_ssid_get(char *ssid);
+
+/**
  * wifi_mgmr_sta_passphr_set
  * set sta mode password
  * param:
@@ -547,14 +572,6 @@ int wifi_mgmr_ap_stop(void);
  *  Others is the string of mode
  */
 char *wifi_mgmr_mode_to_str(uint32_t mode);
-
-/**
- * show_auth_cipher
- * Print auth and cipher of scan result
- * param:
- *  param1 : instance of scan result
- */
-void show_auth_cipher(struct mac_scan_result *result);
 
 /**
  * wifi_mgmr_mac_set
@@ -881,4 +898,16 @@ int wifi_mgmr_set_ht40_enable(uint8_t value);
  * Enable or disable wifi coex
  */
 void wifi_mgmr_coex_enable(bool en);
+
+/**
+ * wifi_mgmr_set_mode
+ * Set sta/ap mode (e.g. b/g/n/ax)
+ */
+int wifi_mgmr_set_mode(uint8_t ap_or_sta, int mode);
+
+/**
+ * wifi_mgmr_get_mode
+ * Get sta/ap mode (e.g. b/g/n/ax)
+ */
+int wifi_mgmr_get_mode(uint8_t ap_or_sta);
 #endif

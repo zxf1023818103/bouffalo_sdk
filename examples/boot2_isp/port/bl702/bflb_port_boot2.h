@@ -72,7 +72,7 @@ extern "C" {
 #define HAL_BOOT2_FW_IMG_OFFSET_AFTER_HEADER 4 * 1024
 #define HAL_BOOT2_MFG_START_REQUEST_OFFSET   8 * 1024
 
-#define BL_FLASH_XIP_BASE BL702_FLASH_XIP_BASE
+#define HAL_BOOT2_FLASH_XIP_BASE BL702_FLASH_XIP_BASE
 
 #define CLIC_CTRL_ADDR  0x02000000UL
 #define CLIC_HART0_ADDR 0x02800000UL
@@ -96,8 +96,7 @@ typedef struct
     uint8_t hbn_check_sign;
     uint8_t rsvd[1];
     uint8_t chip_id[8];
-    uint32_t pk_hash_cpu0[HAL_BOOT2_PK_HASH_SIZE];
-    uint32_t pk_hash_cpu1[HAL_BOOT2_PK_HASH_SIZE];
+    uint32_t pk_hash_cpu[HAL_BOOT2_CPU_GROUP_MAX][HAL_BOOT2_PK_HASH_SIZE];
     uint8_t uart_download_cfg;
     uint8_t sf_pin_cfg;
     uint8_t keep_dbg_port_closed;
@@ -279,10 +278,6 @@ uint32_t hal_boot2_get_grp_count(void);
 uint32_t hal_boot2_get_cpu_count(void);
 uint32_t hal_boot2_get_feature_flag(void);
 uint32_t hal_boot2_get_bootheader_offset(void);
-int32_t hal_get_app_version_from_efuse(uint8_t *version);
-int32_t hal_set_app_version_to_efuse(uint8_t version);
-int32_t hal_get_boot2_version_from_efuse(uint8_t *version);
-int32_t hal_set_boot2_version_to_efuse(uint8_t version);
 #ifdef __cplusplus
 }
 #endif

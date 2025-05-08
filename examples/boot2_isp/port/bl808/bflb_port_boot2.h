@@ -75,7 +75,7 @@
 #define WB_32MB_PSRAM  (4)
 #define NONE_UHS_PSRAM (-1)
 
-#define BL_FLASH_XIP_BASE BL808_FLASH_XIP_BASE
+#define HAL_BOOT2_FLASH_XIP_BASE BL808_FLASH_XIP_BASE
 
 typedef enum {
     HAL_REBOOT_AS_BOOTPIN,     /*!< reboot as bootpin level */
@@ -157,8 +157,7 @@ typedef struct
     uint8_t hbn_check_sign;
     uint8_t rsvd[3];
     uint8_t chip_id[8];
-    uint8_t pk_hash_cpu0[HAL_BOOT2_PK_HASH_SIZE];
-    uint8_t pk_hash_cpu1[HAL_BOOT2_PK_HASH_SIZE];
+    uint8_t pk_hash_cpu[HAL_BOOT2_CPU_GROUP_MAX][HAL_BOOT2_PK_HASH_SIZE];
     uint8_t uart_download_cfg;
     uint8_t sf_pin_cfg;
     uint8_t keep_dbg_port_closed;
@@ -335,8 +334,4 @@ uint32_t hal_boot2_get_cpu_count(void);
 uint32_t hal_boot2_get_feature_flag(void);
 uint32_t hal_boot2_get_bootheader_offset(void);
 void hal_reboot_config(hal_reboot_cfg_t rbot);
-int32_t hal_get_app_version_from_efuse(uint8_t *version);
-int32_t hal_set_app_version_to_efuse(uint8_t version);
-int32_t hal_get_boot2_version_from_efuse(uint8_t *version);
-int32_t hal_set_boot2_version_to_efuse(uint8_t version);
 #endif

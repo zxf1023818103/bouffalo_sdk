@@ -17,7 +17,7 @@
 #define MSP_FS_CREAT                 0x0200
 
 #if defined(CONFIG_FATFS) && CONFIG_FATFS
-void filesystem_init(void);
+int filesystem_init(void);
 int msp_fatfs_flags(int flags);
 int msp_fatfs_open(const char *path, int flags);
 int msp_fatfs_stat(const char *path, struct stat *st);
@@ -35,6 +35,16 @@ int msp_romfs_close(int fd);
 int msp_romfs_read(int fd, void *buf, size_t nbytes);
 int msp_romfs_write(int fd, const void *buf, size_t nbytes);
 int msp_romfs_lseek(int fd, off_t offset, int whence);
+#endif
+
+#if defined(CONFIG_LTFS) && CONFIG_LTFS
+int msp_ltfs_flags(int flags);
+int msp_ltfs_open(const char *path, int flags);
+int msp_ltfs_stat(const char *path, struct stat *st);
+int msp_ltfs_close(int fd);
+int msp_ltfs_read(int fd, void *buf, size_t nbytes);
+int msp_ltfs_write(int fd, const void *buf, size_t nbytes);
+int msp_ltfs_lseek(int fd, off_t offset, int whence);
 #endif
 
 int msp_open(const char *path, int flags);

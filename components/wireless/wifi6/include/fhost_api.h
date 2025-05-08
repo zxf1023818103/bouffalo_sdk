@@ -42,7 +42,7 @@
 
 #include "net_al.h"
 #include "net_def.h"
-#include "export/mac/mac_types.h"
+#include "mac_types.h"
 
 enum vif_ip_set_ret {
     VIF_SET_SUCCESS = 0,
@@ -427,6 +427,18 @@ struct fhost_vif_sta_cfg
      * AP scan probe request TX count
      */
     uint16_t probe_cnt;
+    /**
+     * Auth and Assoc timeout, in sec. 0, use default value
+     */
+    uint8_t auth_timeout;
+    /**
+     * Timeout before EAPOL 1 after associtiated, in sec. 0, use default value
+     */
+    uint8_t eapol_1_timeout;
+    /**
+     * Remaining EAPOL session timeout, in sec. 0, use default value
+     */
+    uint8_t eapol_rem_timeout;
     /**
      * Bit field of Authentication and Key Management (@ref mac_akm_suite) accepted
      * for the connection.

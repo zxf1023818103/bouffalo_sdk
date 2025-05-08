@@ -25,16 +25,20 @@
 #if defined(BFLB_DYNAMIC_ALLOC_MEM)
 #include "bl_port.h"
 #endif
+#if !defined(CONFIG_BT_HOST_HCI_TL)
 #include "bl_hci_wrapper.h"
 #endif
+#endif
 
-#if (BFLB_STATIC_ALLOC_MEM)
+
+//#if (BFLB_STATIC_ALLOC_MEM)
 #include "l2cap.h"
 #include <gatt.h>
 #include <conn.h>
 #include "conn_internal.h"
+#include "l2cap_internal.h"
 #include "att_internal.h"
-#endif
+//#endif
 
 #if defined(CONFIG_NET_BUF_LOG)
 #define NET_BUF_DBG(fmt, ...) LOG_DBG("(%p) " fmt, k_current_get(), \
@@ -122,6 +126,10 @@ __attribute__((section(".tcm_data"))) u8_t data_data_pool[1 * DATA_MTU];
 #endif
 #endif
 
+#if defined(CONFIG_DYNAMIC_GATTS)
+extern struct net_buf_pool dynamic_gatt_pool;
+#endif
+
 struct net_buf_pool *_net_buf_pool_list[] = {&hci_cmd_pool, &hci_rx_pool,
 
     #if defined(CONFIG_BT_CONN)
@@ -161,6 +169,9 @@ struct net_buf_pool *_net_buf_pool_list[] = {&hci_cmd_pool, &hci_rx_pool,
 	#if defined(CONFIG_AUTO_PTS)
 	&server_pool,
 	&data_pool,
+	#endif
+	#if defined(CONFIG_DYNAMIC_GATTS)
+	&dynamic_gatt_pool,
 	#endif
 };
 
@@ -210,7 +221,7 @@ void net_buf_init(struct net_buf_pool *buf_pool, u16_t buf_count, size_t data_si
         #endif
         #if CONFIG_BT_L2CAP_TX_FRAG_COUNT > 0
         case FRAG:
-            buf_fixed->data_pool = (u8_t *)k_malloc(buf_count * data_size); ;
+            buf_fixed->data_pool = (u8_t *)k_malloc(buf_count * data_size);
             break;               
         #endif
         #endif
@@ -225,6 +236,11 @@ void net_buf_init(struct net_buf_pool *buf_pool, u16_t buf_count, size_t data_si
             break;
         case DATA:
             buf_fixed->data_pool = data_data_pool;
+            break;
+        #endif
+        #if defined(CONFIG_DYNAMIC_GATTS)
+        case GATTSERVER:
+            buf_fixed->data_pool = (u8_t *)k_malloc(buf_count * data_size);
             break;
         #endif
         default:
@@ -807,11 +823,13 @@ void net_buf_unref(struct net_buf *buf)
 		buf = frags;
 
 	#if defined(BFLB_BLE)
+       #if !defined(CONFIG_BT_HOST_HCI_TL)
 		if (pool == &hci_rx_pool)
 		{
 			bl_trigger_queued_msg();
 			return;
 		}
+       #endif
 	#endif
 	}
 }

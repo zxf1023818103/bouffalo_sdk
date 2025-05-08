@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define ELOOP_MSG_INBUF_LEN     256
+#define ELOOP_MSG_INBUF_LEN     600
 #define ELOOP_MSG_OUTBUF_LEN    128
 
 enum {

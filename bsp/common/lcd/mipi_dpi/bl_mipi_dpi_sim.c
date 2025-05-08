@@ -84,10 +84,10 @@ int lcd_mipi_dpi_init(lcd_mipi_dpi_init_t *dpi_para)
     /* clk pin */
     bflb_gpio_init(gpio, LCD_DPI_SIM_PIN_CLK, GPIO_FUNC_SIM | GPIO_ALTERNATE | GPIO_PULLDOWN | GPIO_SMT_EN | GPIO_DRV_2);
 
-#if (LCD_SIM_DPI_DE_MODE)
-    /* de pin */
-    bflb_gpio_init(gpio, LCD_DPI_SIM_PIN_CLK + 1, GPIO_FUNC_SIM | GPIO_ALTERNATE | GPIO_PULLDOWN | GPIO_SMT_EN | GPIO_DRV_2);
-#endif
+    if (dpi_para->de_mode_en) {
+        /* de pin */
+        bflb_gpio_init(gpio, LCD_DPI_SIM_PIN_CLK + 1, GPIO_FUNC_SIM | GPIO_ALTERNATE | GPIO_PULLDOWN | GPIO_SMT_EN | GPIO_DRV_2);
+    }
 
 #if (LCD_SIM_DPI_DATA_LATCH_MODE)
     /* latch pin */
@@ -136,7 +136,7 @@ int lcd_mipi_dpi_init(lcd_mipi_dpi_init_t *dpi_para)
     dpi_sim.vfp = dpi_para->vfp;
 
     dpi_sim.data_latch_mode = LCD_SIM_DPI_DATA_LATCH_MODE;
-    dpi_sim.de_sig_enable = LCD_SIM_DPI_DE_MODE;
+    dpi_sim.de_sig_enable = 1;
     dpi_sim.de_sig_polarity = LCD_SIM_DPI_DE_SIN_POL;
     dpi_sim.v_sync_sig_polarity = LCD_SIM_DPI_V_SYNC_SIN_POL;
     dpi_sim.h_sync_sig_polarity = LCD_SIM_DPI_H_SYNC_SIN_POL;
@@ -154,6 +154,9 @@ int lcd_mipi_dpi_init(lcd_mipi_dpi_init_t *dpi_para)
     /* dma lli init */
     sim_dpi_dma_lli_init(dpi_para);
     sim_dpi_dma_lli_update(dpi_para->frame_buff);
+
+    screen_last = dpi_para->frame_buff;
+    next_disp_buffer = screen_last;
 
     /* init DMA */
     sim_dpi_dma_handle = bflb_device_get_by_name(LCD_SIM_DPI_DMA_NAME);

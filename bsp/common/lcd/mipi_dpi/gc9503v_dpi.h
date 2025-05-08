@@ -30,36 +30,6 @@
 
 #if defined LCD_DPI_GC9503V
 
-#if (GC9503V_DPI_INIT_INTERFACE == 1)
-
-/* Software spi 9-bit mode PIN */
-#define GC9503V_SPI_CS_HIGH bflb_gpio_set(gc9503v_gpio, GC9503V_DPI_SPI_CS_PIN)
-#define GC9503V_SPI_CS_LOW  bflb_gpio_reset(gc9503v_gpio, GC9503V_DPI_SPI_CS_PIN)
-
-#define GC9503V_SPI_CLK_HIGH bflb_gpio_set(gc9503v_gpio, GC9503V_DPI_SPI_CLK_PIN)
-#define GC9503V_SPI_CLK_LOW  bflb_gpio_reset(gc9503v_gpio, GC9503V_DPI_SPI_CLK_PIN)
-
-#define GC9503V_SPI_MOSI_HIGH bflb_gpio_set(gc9503v_gpio, GC9503V_DPI_SPI_DAT_PIN)
-#define GC9503V_SPI_MOSI_LOW  bflb_gpio_reset(gc9503v_gpio, GC9503V_DPI_SPI_DAT_PIN)
-
-#define DUMMY_DELAY      \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop"); \
-    asm volatile("nop");
-
-#endif
-
 #if (GC9503V_DPI_PIXEL_FORMAT == 1)
 #define GC9503V_DPI_COLOR_DEPTH 16
 typedef uint16_t gc9503v_dpi_color_t;

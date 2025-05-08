@@ -1,19 +1,49 @@
-#include "usbd_core.h"
-#include "usbd_cdc_ecm.h"
-#include "usbd_cdc.h"
+#include "bflb_mtimer.h"
 #include "bflb_emac.h"
-#include "ethernet_phy.h"
+
+#include "usbd_core.h"
+#include "usbd_cdc.h"
+#include "usbd_cdc_ecm.h"
+
+#include "eth_phy.h"
+#include "ephy_general.h"
+#include "ephy_lan8720.h"
+
 #include "board.h"
+
 #include "ring_buffer.h"
 
-/*!< endpoint address */
-#define CDC_IN_EP          0x81
-#define CDC_OUT_EP         0x02
-#define CDC_INT_EP         0x86
+#define DBG_TAG "ECM"
+#include "log.h"
 
-#define CDC_IN_EP2         0x83
-#define CDC_OUT_EP2        0x04
-#define CDC_INT_EP2        0x85
+/* MTU */
+#define ECM_EMAC_NETIF_MTU (1514)
+
+/* MAC ADDRESS NUM */
+#define MAC_ADDR_NUM_0     (0x18)
+#define MAC_ADDR_NUM_1     (0xB9)
+#define MAC_ADDR_NUM_2     (0x05)
+#define MAC_ADDR_NUM_3     (0x12)
+#define MAC_ADDR_NUM_4     (0x34)
+#define MAC_ADDR_NUM_5     (0x56)
+/* MAC ADDRESS ASCII */
+#define MAC_ADDR_ASCII_00  ('1')
+#define MAC_ADDR_ASCII_01  ('8')
+#define MAC_ADDR_ASCII_10  ('B')
+#define MAC_ADDR_ASCII_11  ('9')
+#define MAC_ADDR_ASCII_20  ('0')
+#define MAC_ADDR_ASCII_21  ('5')
+#define MAC_ADDR_ASCII_30  ('1')
+#define MAC_ADDR_ASCII_31  ('2')
+#define MAC_ADDR_ASCII_40  ('3')
+#define MAC_ADDR_ASCII_41  ('4')
+#define MAC_ADDR_ASCII_50  ('5')
+#define MAC_ADDR_ASCII_51  ('6')
+
+/*!< endpoint address */
+#define CDC_ECM_IN_EP      0x81
+#define CDC_ECM_OUT_EP     0x02
+#define CDC_ECM_INT_EP     0x83
 
 #define USBD_VID           0xFFFF
 #define USBD_PID           0xFFFF
@@ -21,7 +51,7 @@
 #define USBD_LANGID_STRING 1033
 
 /*!< config descriptor size */
-#define USB_CONFIG_SIZE    (9 + CDC_ECM_DESCRIPTOR_LEN + CDC_ACM_DESCRIPTOR_LEN)
+#define USB_CONFIG_SIZE    (9 + CDC_ECM_DESCRIPTOR_LEN)
 
 #ifdef CONFIG_USB_HS
 #define CDC_MAX_MPS 512
@@ -38,8 +68,7 @@
 static const uint8_t cdc_ecm_descriptor[] = {
     USB_DEVICE_DESCRIPTOR_INIT(USB_2_0, 0xEF, 0x02, 0x01, USBD_VID, USBD_PID, 0x0100, 0x01),
     USB_CONFIG_DESCRIPTOR_INIT(USB_CONFIG_SIZE, 0x04, 0x01, USB_CONFIG_BUS_POWERED, USBD_MAX_POWER),
-    CDC_ECM_DESCRIPTOR_INIT(0x00, CDC_INT_EP, CDC_OUT_EP, CDC_IN_EP, CDC_MAX_MPS, CDC_ECM_ETH_STATISTICS_BITMAP, CONFIG_CDC_ECM_ETH_MAX_SEGSZE, 0, 0, CDC_ECM_MAC_STRING_INDEX),
-    CDC_ACM_DESCRIPTOR_INIT(0x02, CDC_INT_EP2, CDC_OUT_EP2, CDC_IN_EP2, CDC_MAX_MPS, 0x02),
+    CDC_ECM_DESCRIPTOR_INIT(0x00, CDC_ECM_INT_EP, CDC_ECM_OUT_EP, CDC_ECM_IN_EP, CDC_MAX_MPS, CDC_ECM_ETH_STATISTICS_BITMAP, ECM_EMAC_NETIF_MTU, 0, 0, CDC_ECM_MAC_STRING_INDEX),
     ///////////////////////////////////////
     /// string0 descriptor
     ///////////////////////////////////////
@@ -105,18 +134,18 @@ static const uint8_t cdc_ecm_descriptor[] = {
     ///////////////////////////////////////
     0x1A,                       /* bLength */
     USB_DESCRIPTOR_TYPE_STRING, /* bDescriptorType */
-    'a', 0x00,                  /* wcChar0 */
-    'a', 0x00,                  /* wcChar1 */
-    'b', 0x00,                  /* wcChar2 */
-    'b', 0x00,                  /* wcChar3 */
-    'c', 0x00,                  /* wcChar4 */
-    'c', 0x00,                  /* wcChar5 */
-    'd', 0x00,                  /* wcChar6 */
-    'd', 0x00,                  /* wcChar7 */
-    'e', 0x00,                  /* wcChar8 */
-    'e', 0x00,                  /* wcChar9 */
-    'f', 0x00,                  /* wcChar10 */
-    'f', 0x00,                  /* wcChar11 */
+    MAC_ADDR_ASCII_00, 0x00,    /* wcChar0 */
+    MAC_ADDR_ASCII_01, 0x00,    /* wcChar1 */
+    MAC_ADDR_ASCII_10, 0x00,    /* wcChar2 */
+    MAC_ADDR_ASCII_11, 0x00,    /* wcChar3 */
+    MAC_ADDR_ASCII_20, 0x00,    /* wcChar4 */
+    MAC_ADDR_ASCII_21, 0x00,    /* wcChar5 */
+    MAC_ADDR_ASCII_30, 0x00,    /* wcChar6 */
+    MAC_ADDR_ASCII_31, 0x00,    /* wcChar7 */
+    MAC_ADDR_ASCII_40, 0x00,    /* wcChar8 */
+    MAC_ADDR_ASCII_41, 0x00,    /* wcChar9 */
+    MAC_ADDR_ASCII_50, 0x00,    /* wcChar10 */
+    MAC_ADDR_ASCII_51, 0x00,    /* wcChar11 */
 #ifdef CONFIG_USB_HS
     ///////////////////////////////////////
     /// device qualifier descriptor
@@ -135,59 +164,144 @@ static const uint8_t cdc_ecm_descriptor[] = {
     0x00
 };
 
+/* emac buff cfg */
+/* rx buff cnt */
+#define EMAC_RX_BUFF_CNT    (32) /* < EMAC_RX_BD_BUM_MAX */
+/* rx buff size */
+#define EMAC_RX_BUFF_SIZE   (14 + 4 + 1500 + 4)
+/* tx buff size */
+#define EMAC_TX_BUFF_CNT    (32) /* < EMAC_TX_BD_BUM_MAX */
+/* tx buff cnt */
+#define EMAC_TX_BUFF_SIZE   (14 + 4 + 1500 + 4)
+/* emac min frame size  */
+#define EMAC_FRAME_SIZE_MIN (14 + 46 + 4)
+/* emac max frame size  */
+#define EMAC_FRAME_SIZE_MAX (14 + 4 + 1500 + 4)
+
+#define EMAC_DESC_SIZE      (sizeof(struct bflb_emac_trans_desc_s))
+
+/* emac and ephy */
 struct bflb_device_s *emac0;
-volatile uint8_t g_emac_tx_idle_flag = 1;
-volatile uint8_t g_emac_rx_idle_flag = 1;
+eth_phy_ctrl_t phy_ctrl;
 
-#define ETH_RXBUFNB 110
-#define ETH_TXBUFNB 10
+/* emac rx/tx desc ring buffer */
+Ring_Buffer_Type rb_emac_desc_dnld;
+Ring_Buffer_Type rb_emac_desc_upld;
+ATTR_NOCACHE_NOINIT_RAM_SECTION __ALIGNED(32) uint8_t rb_emac_desc_dnld_buff[EMAC_DESC_SIZE * (EMAC_RX_BUFF_CNT + 1)];
+ATTR_NOCACHE_NOINIT_RAM_SECTION __ALIGNED(32) uint8_t rb_emac_desc_upld_buff[EMAC_DESC_SIZE * (EMAC_TX_BUFF_CNT + 1)];
 
-ATTR_NOCACHE_NOINIT_RAM_SECTION __attribute__((aligned(4))) uint8_t ethRxBuff[ETH_RXBUFNB][ETH_RX_BUFFER_SIZE]; /* Ethernet Receive Buffers */
-ATTR_NOCACHE_NOINIT_RAM_SECTION __attribute__((aligned(4))) uint8_t ethTxBuff[ETH_TXBUFNB][ETH_TX_BUFFER_SIZE]; /* Ethernet Transmit Buffers */
+/* emac data buff */
+ATTR_NOCACHE_NOINIT_RAM_SECTION __ALIGNED(32) uint8_t emac_rx_buff[EMAC_RX_BUFF_CNT][EMAC_RX_BUFF_SIZE];
+ATTR_NOCACHE_NOINIT_RAM_SECTION __ALIGNED(32) uint8_t emac_tx_buff[EMAC_TX_BUFF_CNT][EMAC_TX_BUFF_SIZE];
 
-Ring_Buffer_Type emac_rx_rb;
+/* emac tx debug info */
+static volatile uint32_t tx_push_cnt = 0;
+static volatile uint32_t tx_success_cnt = 0;
+static volatile uint32_t tx_error_cnt = 0;
+static volatile uint64_t tx_total_size = 0;
+/* emac rx debug info */
+static volatile uint32_t rx_push_cnt = 0;
+static volatile uint32_t rx_success_cnt = 0;
+static volatile uint32_t rx_error_cnt = 0;
+static volatile uint32_t rx_busy_cnt = 0;
+static volatile uint64_t rx_total_size = 0;
 
-struct eth_buf {
-    uint8_t *pbuf;
-    uint32_t len;
-    uint32_t idx;
+/* ecm debug info */
+static volatile uint32_t ecm_upld_cnt = 0;
+static volatile uint64_t ecm_upld_size = 0;
+static volatile uint32_t ecm_dnld_cnt = 0;
+static volatile uint64_t ecm_dnld_size = 0;
+
+/* usb ecm status flag */
+volatile bool ecm_tx_busy_flag = false;
+volatile bool ecm_rx_busy_flag = false;
+struct bflb_emac_trans_desc_s ecm_upld_desc_using;
+struct bflb_emac_trans_desc_s ecm_dnld_desc_using;
+
+/* emac link_up status flag */
+volatile bool emac_link_up_flag = false;
+volatile bool usb_ecm_ready_flag = false;
+
+/* phy cfg */
+static eth_phy_init_cfg_t phy_cfg = {
+    .speed_mode = EPHY_SPEED_MODE_AUTO_NEGOTIATION,
+    .local_auto_negotiation_ability = EPHY_ABILITY_100M_TX | EPHY_ABILITY_100M_FULL_DUPLEX,
 };
 
-struct eth_buf emac_rx_rb_buffer[ETH_RXBUFNB];
-ATTR_NOCACHE_NOINIT_RAM_SECTION __attribute__((aligned(4))) uint8_t usb_tx_temp_buffer[ETH_RX_BUFFER_SIZE];
+/* emac cfg */
+static struct bflb_emac_config_s emac_cfg = {
+    .mac_addr = { MAC_ADDR_NUM_0, MAC_ADDR_NUM_1, MAC_ADDR_NUM_2, MAC_ADDR_NUM_3, MAC_ADDR_NUM_4, MAC_ADDR_NUM_5 },
+    .md_clk_div = 39,
+    .min_frame_len = EMAC_FRAME_SIZE_MIN,
+    .max_frame_len = EMAC_FRAME_SIZE_MAX,
+};
 
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t read_buffer[2048];
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t write_buffer[2048];
-
-volatile bool ep_tx_busy_flag = false;
-
-void usbd_event_handler(uint8_t event)
+/* ringbuff lock/unlock */
+static volatile uintptr_t irq_flag;
+static void rb_lock_cb(void)
 {
-    switch (event) {
-        case USBD_EVENT_RESET:
-            g_emac_tx_idle_flag = 1;
-            g_emac_rx_idle_flag = 1;
+    irq_flag = bflb_irq_save();
+}
+static void rb_unlock_cb(void)
+{
+    bflb_irq_restore(irq_flag);
+}
+
+/* ecm tx/rx done callback  */
+static void emac_irq_cb(void *arg, uint32_t irq_event, struct bflb_emac_trans_desc_s *trans_desc)
+{
+    switch (irq_event) {
+        case EMAC_IRQ_EVENT_RX_BUSY:
+            LOG_W("rx busy\r\n");
+            /* debug */
+            rx_busy_cnt++;
             break;
-        case USBD_EVENT_CONNECTED:
+
+        case EMAC_IRQ_EVENT_RX_CTRL_FRAME:
+            LOG_W("rx ctrl frame, drop.\r\n");
+            trans_desc->attr_flag = 0;
+            trans_desc->err_status = 0;
+            bflb_emac_queue_rx_push(emac0, trans_desc);
+            /* debug */
+            rx_push_cnt++;
+            rx_success_cnt++;
+            rx_total_size += trans_desc->data_len;
             break;
-        case USBD_EVENT_DISCONNECTED:
+
+        case EMAC_IRQ_EVENT_RX_ERR_FRAME:
+            LOG_W("rx err frame sta %d, drop.\r\n", trans_desc->err_status);
+            trans_desc->attr_flag = 0;
+            trans_desc->err_status = 0;
+            bflb_emac_queue_rx_push(emac0, trans_desc);
+            /* debug */
+            rx_push_cnt++;
+            rx_error_cnt++;
             break;
-        case USBD_EVENT_RESUME:
+
+        case EMAC_IRQ_EVENT_RX_FRAME:
+            Ring_Buffer_Write(&rb_emac_desc_upld, (uint8_t *)trans_desc, EMAC_DESC_SIZE);
+            /* debug */
+            rx_success_cnt++;
+            rx_total_size += trans_desc->data_len;
             break;
-        case USBD_EVENT_SUSPEND:
+
+        case EMAC_IRQ_EVENT_TX_FRAME:
+            Ring_Buffer_Write(&rb_emac_desc_dnld, (uint8_t *)trans_desc, EMAC_DESC_SIZE);
+            /* debug */
+            tx_success_cnt++;
+            tx_total_size += trans_desc->data_len;
             break;
-        case USBD_EVENT_CONFIGURED:
-            /* EMAC transmit start */
-            usbd_cdc_ecm_send_connect_status(true);
-            //printf("EMAC start\r\n");
-            bflb_emac_start(emac0);
-            bflb_irq_enable(emac0->irq_num);
-            /* setup first out ep read transfer */
-            usbd_ep_start_read(CDC_OUT_EP2, read_buffer, 512);
-            break;
-        case USBD_EVENT_SET_REMOTE_WAKEUP:
-            break;
-        case USBD_EVENT_CLR_REMOTE_WAKEUP:
+
+        case EMAC_IRQ_EVENT_TX_ERR_FRAME:
+            Ring_Buffer_Write(&rb_emac_desc_dnld, (uint8_t *)trans_desc, EMAC_DESC_SIZE);
+            /* debug */
+            if (trans_desc->err_status & (~EMAC_TX_STA_ERR_CS)) {
+                LOG_W("tx err sta:%d\r\n", trans_desc->err_status);
+                tx_error_cnt++;
+            } else {
+                tx_success_cnt++;
+                tx_total_size += trans_desc->data_len;
+            }
             break;
 
         default:
@@ -195,179 +309,95 @@ void usbd_event_handler(uint8_t event)
     }
 }
 
-void usbd_cdc_acm_bulk_out(uint8_t ep, uint32_t nbytes)
+/* emac/ephy init */
+int emac_init()
 {
-    USB_LOG_RAW("actual out len:%d\r\n", nbytes);
-    // for (int i = 0; i < 100; i++) {
-    //     printf("%02x ", read_buffer[i]);
-    // }
-    // printf("\r\n");
-    /* setup next out ep read transfer */
-    usbd_ep_start_read(CDC_OUT_EP2, read_buffer, 2048);
-}
+    int ret;
 
-void usbd_cdc_acm_bulk_in(uint8_t ep, uint32_t nbytes)
-{
-    USB_LOG_RAW("actual in len:%d\r\n", nbytes);
-
-    if ((nbytes % CDC_MAX_MPS) == 0 && nbytes) {
-        /* send zlp */
-        usbd_ep_start_write(CDC_IN_EP2, NULL, 0);
-    } else {
-        ep_tx_busy_flag = false;
-    }
-}
-
-/*!< endpoint call back */
-struct usbd_endpoint cdc_out_ep = {
-    .ep_addr = CDC_OUT_EP2,
-    .ep_cb = usbd_cdc_acm_bulk_out
-};
-
-struct usbd_endpoint cdc_in_ep = {
-    .ep_addr = CDC_IN_EP2,
-    .ep_cb = usbd_cdc_acm_bulk_in
-};
-
-void usbd_cdc_ecm_packet_recv_done(uint8_t *buf, uint32_t len)
-{
-    //printf("rxlen:%d\r\n", len);
-    if (0 != bflb_emac_bd_tx_enqueue(EMAC_NORMAL_PACKET, len, buf)) {
-        printf("emac_bd_tx_enqueue error!\r\n");
-        g_emac_rx_idle_flag = 1;
-    }
-}
-
-void usbd_cdc_ecm_packet_send_done(void)
-{
-    g_emac_tx_idle_flag = 1;
-}
-
-void emac_isr(int irq, void *arg)
-{
-    uint32_t int_sts_val;
-    uint32_t index = 0;
-    int_sts_val = bflb_emac_get_int_status(emac0);
-    // printf("emac int:%08lx\r\n", int_sts_val);
-    if (int_sts_val & EMAC_INT_STS_TX_DONE) {
-        index = bflb_emac_bd_get_cur_active(emac0, EMAC_BD_TYPE_TX);
-        bflb_emac_bd_tx_dequeue(index);
-        bflb_emac_int_clear(emac0, EMAC_INT_STS_TX_DONE);
-        usbd_cdc_ecm_start_read_next_packet();
-    }
-
-    if (int_sts_val & EMAC_INT_STS_TX_ERROR) {
-        bflb_emac_int_clear(emac0, EMAC_INT_STS_TX_ERROR);
-        index = bflb_emac_bd_get_cur_active(emac0, EMAC_BD_TYPE_TX);
-        bflb_emac_bd_tx_on_err(index);
-
-        printf("EMAC tx error !!!\r\n");
-        usbd_cdc_ecm_start_read_next_packet();
-    }
-
-    if (int_sts_val & EMAC_INT_STS_RX_DONE) {
-        bflb_emac_int_clear(emac0, EMAC_INT_STS_RX_DONE);
-        index = bflb_emac_bd_get_cur_active(emac0, EMAC_BD_TYPE_RX);
-        bflb_emac_bd_rx_enqueue(index);
-
-        struct eth_buf buf;
-
-        while (1) {
-            buf.idx = bflb_emac_bd_rx_dequeue(-1, &buf.len, &buf.pbuf);
-
-            if (buf.len) {
-                if (Ring_Buffer_Get_Status(&emac_rx_rb) == RING_BUFFER_FULL) {
-                    printf("data full, drop\r\n");
-                    continue;
-                }
-
-                Ring_Buffer_Write(&emac_rx_rb, (uint8_t *)&buf, sizeof(struct eth_buf));
-            } else {
-                break;
-            }
-        }
-    }
-
-    if (int_sts_val & EMAC_INT_STS_RX_ERROR) {
-        bflb_emac_int_clear(emac0, EMAC_INT_STS_RX_ERROR);
-        index = bflb_emac_bd_get_cur_active(emac0, EMAC_BD_TYPE_RX);
-        bflb_emac_bd_rx_on_err(index);
-
-        printf("EMAC rx error!!!\r\n");
-    }
-
-    if (int_sts_val & EMAC_INT_STS_RX_BUSY) {
-        printf("emac rx busy\r\n");
-        index = bflb_emac_bd_get_cur_active(emac0, EMAC_BD_TYPE_RX);
-        printf("index:%d\r\n", index);
-        bflb_emac_int_clear(emac0, EMAC_INT_STS_RX_BUSY);
-    }
-}
-
-void emac_init()
-{
-    struct bflb_emac_config_s emac_cfg = {
-        .inside_clk = EMAC_CLK_USE_EXTERNAL,
-        .mii_clk_div = 49,
-        .min_frame_len = 64,
-        .max_frame_len = ETH_MAX_PACKET_SIZE,
-        .mac_addr[0] = 0x18,
-        .mac_addr[1] = 0xB9,
-        .mac_addr[2] = 0x05,
-        .mac_addr[3] = 0x12,
-        .mac_addr[4] = 0x34,
-        .mac_addr[5] = 0x56,
-    };
-
-    struct bflb_emac_phy_cfg_s phy_cfg = {
-        .auto_negotiation = 1, /*!< Speed and mode auto negotiation */
-        .full_duplex = 1,      /*!< Duplex mode */
-        .speed = 100,            /*!< Speed mode */
-    #ifdef PHY_8720
-        .phy_address = 0x01,  /*!< PHY address */
-        .phy_id = 0x7c0f0, /*!< PHY OUI, masked */
-    #else
-    #ifdef PHY_8201F
-        .phy_address = 0, /*!< PHY address */
-        .phy_id = 0x120,  /*!< PHY OUI, masked */
-    #endif
-    #ifdef PHY_11X1
-        .phy_address = 0, /*!< PHY address */
-        .phy_id = 0xc4020,  /*!< PHY OUI, masked */
-    #endif
-    #endif
-        .phy_state = PHY_STATE_DOWN,
-    };
-
-    /* emac gpio init */
-    board_emac_gpio_init();
-
-    /* emac & BD init and interrupt attach */
+    /* emac init */
     emac0 = bflb_device_get_by_name("emac0");
+    if (emac0 == NULL) {
+        LOG_E("device_get error\r\n");
+        return -1;
+    }
     bflb_emac_init(emac0, &emac_cfg);
-    bflb_emac_bd_init(emac0, (uint8_t *)ethTxBuff, ETH_TXBUFNB, (uint8_t *)ethRxBuff, ETH_RXBUFNB);
-    bflb_irq_attach(emac0->irq_num, emac_isr, emac0);
-    bflb_emac_int_clear(emac0, EMAC_INT_EN_ALL);
-    bflb_emac_int_enable(emac0, EMAC_INT_EN_ALL, 1);
+    bflb_emac_irq_attach(emac0, emac_irq_cb, NULL);
+    bflb_emac_feature_control(emac0, EMAC_CMD_SET_RX_PROMISCUOUS, false);
 
-    /* phy module init */
-    ethernet_phy_init(emac0, &phy_cfg);
-    printf("ETH PHY init ok!\r\n");
-    ethernet_phy_status_get();
-    if (PHY_STATE_UP == phy_cfg.phy_state) {
-        printf("PHY[%lx] @%d ready on %dMbps, %s duplex\n\r", phy_cfg.phy_id, phy_cfg.phy_address, phy_cfg.speed, phy_cfg.full_duplex ? "full" : "half");
-    } else {
-        printf("PHY Init fail\n\r");
-        while (1) {
-            bflb_mtimer_delay_ms(10);
-        }
+    /* scan eth_phy */
+    ret = eth_phy_scan(&phy_ctrl, EPHY_ADDR_MIN, EPHY_ADDR_MAX);
+    if (ret < 0) {
+        return -2;
+    }
+
+    /* eth_phy init */
+    ret = eth_phy_init(&phy_ctrl, &phy_cfg);
+    if (ret < 0) {
+        return -3;
+    }
+
+    /* LAN8720 Timing Adjustment: When in ref_clk input mode, invert the rx_clk. */
+    if( (emac_cfg.clk_internal_mode == false) &&
+        (phy_ctrl.phy_drv->phy_id == EPHY_LAN8720_ID)) {
+        LOG_W("Invert rx_clk for LAN8720 Timing Adjustment.\r\n");
+        bflb_emac_feature_control(emac0, EMAC_CMD_SET_MAC_RX_CLK_INVERT, true);
+    }
+
+    /* tx ringbuff init */
+    Ring_Buffer_Init(&rb_emac_desc_upld, (uint8_t *)rb_emac_desc_upld_buff, sizeof(rb_emac_desc_upld_buff), rb_lock_cb, rb_unlock_cb);
+
+    /* rx queue init */
+    Ring_Buffer_Init(&rb_emac_desc_dnld, (uint8_t *)rb_emac_desc_dnld_buff, sizeof(rb_emac_desc_dnld_buff), rb_lock_cb, rb_unlock_cb);
+
+    return 0;
+}
+
+/* usb event handler */
+void usbd_event_handler(uint8_t event)
+{
+    switch (event) {
+        case USBD_EVENT_RESET:
+            LOG_W("USBD_EVENT_RESET\r\n");
+            ecm_rx_busy_flag = false;
+            ecm_tx_busy_flag = false;
+            break;
+        case USBD_EVENT_CONNECTED:
+            LOG_W("USBD_EVENT_CONNECTED\r\n");
+            break;
+        case USBD_EVENT_DISCONNECTED:
+            usb_ecm_ready_flag = false;
+            emac_link_up_flag = false;
+            LOG_W("USBD_EVENT_DISCONNECTED\r\n");
+            break;
+        case USBD_EVENT_RESUME:
+            LOG_W("USBD_EVENT_RESUME\r\n");
+            usb_ecm_ready_flag = true;
+            break;
+        case USBD_EVENT_SUSPEND:
+            LOG_W("USBD_EVENT_SUSPEND\r\n");
+            usb_ecm_ready_flag = false;
+            emac_link_up_flag = false;
+            break;
+        case USBD_EVENT_CONFIGURED:
+            LOG_W("USBD_EVENT_CONFIGURED\r\n");
+            /* EMAC transmit start */
+            usbd_cdc_ecm_send_connect_status(false);
+            usb_ecm_ready_flag = true;
+            break;
+        case USBD_EVENT_SET_REMOTE_WAKEUP:
+            LOG_W("USBD_EVENT_SET_REMOTE_WAKEUP\r\n");
+            break;
+        case USBD_EVENT_CLR_REMOTE_WAKEUP:
+            LOG_W("USBD_EVENT_CLR_REMOTE_WAKEUP\r\n");
+            break;
+
+        default:
+            break;
     }
 }
 
 struct usbd_interface intf0;
 struct usbd_interface intf1;
-struct usbd_interface intf2;
-struct usbd_interface intf3;
 
 /* ecm only supports in linux, and you should input the following command
  * 
@@ -376,52 +406,250 @@ struct usbd_interface intf3;
 */
 void cdc_ecm_init(void)
 {
-    emac_init();
-    Ring_Buffer_Init(&emac_rx_rb, (uint8_t *)emac_rx_rb_buffer, sizeof(emac_rx_rb_buffer), NULL, NULL);
-
     usbd_desc_register(cdc_ecm_descriptor);
-    usbd_add_interface(usbd_cdc_ecm_init_intf(&intf0, CDC_INT_EP, CDC_OUT_EP, CDC_IN_EP));
-    usbd_add_interface(usbd_cdc_ecm_init_intf(&intf1, CDC_INT_EP, CDC_OUT_EP, CDC_IN_EP));
-    usbd_add_interface(usbd_cdc_acm_init_intf(&intf2));
-    usbd_add_interface(usbd_cdc_acm_init_intf(&intf3));
-    usbd_add_endpoint(&cdc_out_ep);
-    usbd_add_endpoint(&cdc_in_ep);
+    usbd_add_interface(usbd_cdc_ecm_init_intf(&intf0, CDC_ECM_INT_EP, CDC_ECM_OUT_EP, CDC_ECM_IN_EP));
+    usbd_add_interface(usbd_cdc_ecm_init_intf(&intf1, CDC_ECM_INT_EP, CDC_ECM_OUT_EP, CDC_ECM_IN_EP));
     usbd_initialize();
 }
 
-void emac_poll()
+/* ephy status update */
+void ecm_emac_status_poll()
 {
-    struct eth_buf buf;
-    uint32_t len;
+    static int speed_mode;
+    static int link_sta;
+    static bool ecm_ready = false;
 
-    if (g_emac_tx_idle_flag == 1) {
-        len = Ring_Buffer_Read(&emac_rx_rb, (uint8_t *)&buf, sizeof(struct eth_buf));
-        if (len) {
-            g_emac_tx_idle_flag = 0;
-            usbd_ep_start_write(CDC_IN_EP, buf.pbuf, buf.len);
+    /* reset emac */
+    if (ecm_ready == true && usb_ecm_ready_flag == false) {
+        ecm_ready = false;
+
+        LOG_W("EMAC STOP!\r\n");
+
+        emac_link_up_flag = false;
+        if (emac0) {
+            /* disable tx and rx, and clean tx/rx bd */
+            bflb_emac_deinit(emac0);
+        }
+    }
+
+    /* init emac */
+    if (ecm_ready == false && usb_ecm_ready_flag == true) {
+        ecm_ready = true;
+
+        LOG_W("EMAC START!\r\n");
+
+        emac_link_up_flag = false;
+        link_sta = 0;
+        speed_mode = 0;
+
+        do {
+            if (emac_init() < 0) {
+                LOG_E("emac_init failed, retry...\r\n");
+                bflb_mtimer_delay_ms(1000);
+            } else {
+                LOG_I("emac_init OK\r\n");
+                break;
+            }
+        } while (1);
+    }
+
+    if (usb_ecm_ready_flag == false) {
+        return;
+    }
+
+    int sta = eth_phy_ctrl(&phy_ctrl, EPHY_CMD_GET_LINK_STA, 0);
+    int speed = eth_phy_ctrl(&phy_ctrl, EPHY_CMD_GET_SPEED_MODE, 0);
+
+    if (sta == EPHY_LINK_STA_UP && link_sta != EPHY_LINK_STA_UP) {
+        LOG_W("ECM Eth Emac LinkUp !!!\r\n");
+
+        /* ecm_dnld/emac_tx queue reinit */
+        Ring_Buffer_Reset(&rb_emac_desc_dnld);
+        for (int i = 0; i < EMAC_TX_BUFF_CNT; i++) {
+            struct bflb_emac_trans_desc_s tx_desc = {
+                .buff_addr = emac_tx_buff[i],
+            };
+            Ring_Buffer_Write(&rb_emac_desc_dnld, (uint8_t *)&tx_desc, EMAC_DESC_SIZE);
+        }
+        /* ecm_upld/emac_rx queue reinit */
+        Ring_Buffer_Reset(&rb_emac_desc_upld);
+        for (int i = 0; i < EMAC_RX_BUFF_CNT; i++) {
+            struct bflb_emac_trans_desc_s rx_desc = {
+                .buff_addr = emac_rx_buff[i],
+            };
+            bflb_emac_queue_rx_push(emac0, &rx_desc);
+            rx_push_cnt += 1;
+        }
+
+        /* enable full duplex mode */
+        if (speed == EPHY_SPEED_MODE_10M_FULL_DUPLEX || speed == EPHY_SPEED_MODE_100M_FULL_DUPLEX) {
+            bflb_emac_feature_control(emac0, EMAC_CMD_SET_FULL_DUPLEX, true);
         } else {
+            bflb_emac_feature_control(emac0, EMAC_CMD_SET_FULL_DUPLEX, false);
         }
+        /* enable tx and rx */
+        bflb_emac_feature_control(emac0, EMAC_CMD_SET_TX_EN, true);
+        bflb_emac_feature_control(emac0, EMAC_CMD_SET_RX_EN, true);
+
+        emac_link_up_flag = true;
+        usbd_cdc_ecm_send_connect_status(true);
+
+    } else if (sta != EPHY_LINK_STA_UP && link_sta == EPHY_LINK_STA_UP) {
+        LOG_W("ECM Eth Emac LinkDown !!!\r\n");
+        usbd_cdc_ecm_send_connect_status(false);
+        emac_link_up_flag = false;
+
+        /* disable tx and rx, and clean tx/rx bd */
+        bflb_emac_feature_control(emac0, EMAC_CMD_SET_TX_EN, false);
+        bflb_emac_feature_control(emac0, EMAC_CMD_SET_RX_EN, false);
+        bflb_emac_bd_ctrl_clean(emac0);
+        bflb_mtimer_delay_us(200);
+
+        speed_mode = 0;
+    }
+    link_sta = sta;
+
+    if (link_sta != EPHY_LINK_STA_UP) {
+        return;
+    }
+
+    if (speed != speed_mode) {
+        speed_mode = speed;
+        if (speed_mode == EPHY_SPEED_MODE_10M_HALF_DUPLEX) {
+            LOG_I("eth_phy speed: 10M_HALF_DUPLEX\r\n");
+        } else if (speed_mode == EPHY_SPEED_MODE_10M_FULL_DUPLEX) {
+            LOG_I("eth_phy speed: 10M_FULL_DUPLEX\r\n");
+        } else if (speed_mode == EPHY_SPEED_MODE_100M_HALF_DUPLEX) {
+            LOG_I("eth_phy speed: 100M_HALF_DUPLEX\r\n");
+        } else if (speed_mode == EPHY_SPEED_MODE_100M_FULL_DUPLEX) {
+            LOG_I("eth_phy speed: 100M_FULL_DUPLEX\r\n");
+        }
+
+        uint32_t peed_table[2] = { (100 * 1000 * 1000), (100 * 1000 * 1000) }; /* upstrem, downstrem */
+        usbd_cdc_ecm_set_connect_speed(peed_table);
     }
 }
 
-
-volatile uint8_t dtr_enable = 0;
-
-void usbd_cdc_acm_set_dtr(uint8_t intf, bool dtr)
+/* device has received the packet from the host. */
+void usbd_cdc_ecm_packet_recv_done(uint32_t nbytes)
 {
-    if (dtr) {
-        dtr_enable = 1;
-    } else {
-        dtr_enable = 0;
+    ecm_dnld_cnt++;
+    ecm_dnld_size += nbytes;
+
+    ecm_rx_busy_flag = false;
+
+    if (emac_link_up_flag == false) {
+        return;
+    }
+
+    // LOG_E("ecm_recv_done size: %d\r\n", nbytes);
+
+    // uint8_t *buff = (uint8_t *)ecm_dnld_desc_using.buff_addr;
+    // LOG_E("ECM-DNLD: dest: %02X:%02X:%02X:%02X:%02X:%02X, src:%02X:%02X:%02X:%02X:%02X:%02X\r\n",
+    //       buff[0], buff[1], buff[2], buff[3], buff[4], buff[5], buff[6], buff[7], buff[8], buff[9], buff[10], buff[11]);
+
+    /* usb receive done, push the desc to emac tx buff */
+    ecm_dnld_desc_using.data_len = nbytes;
+    bflb_emac_queue_tx_push(emac0, &ecm_dnld_desc_using);
+    tx_push_cnt += 1;
+}
+
+/* device has sent the package to the host */
+void usbd_cdc_ecm_packet_send_done(uint32_t nbytes)
+{
+    ecm_upld_cnt++;
+    ecm_upld_size += nbytes;
+
+    ecm_tx_busy_flag = false;
+
+    if (emac_link_up_flag == false) {
+        return;
+    }
+
+    // LOG_W("ecm_send_done size: %d\r\n", nbytes);
+
+    /* usb send done, push the desc to emac rx buff */
+    bflb_emac_queue_rx_push(emac0, &ecm_upld_desc_using);
+    rx_push_cnt += 1;
+}
+
+/* ecm upld */
+void ecm_send_poll()
+{
+    if (emac_link_up_flag == false) {
+        return;
+    }
+
+    if ((ecm_tx_busy_flag == false) && (Ring_Buffer_Get_Length(&rb_emac_desc_upld) > EMAC_DESC_SIZE)) {
+        /* get emac_rx/ecm_upld buff desc */
+        Ring_Buffer_Read(&rb_emac_desc_upld, (uint8_t *)&ecm_upld_desc_using, EMAC_DESC_SIZE);
+
+        // uint8_t *buff = (uint8_t *)ecm_upld_desc_using.buff_addr;
+        // LOG_W("ECM-UPLD: dest: %02X:%02X:%02X:%02X:%02X:%02X, src:%02X:%02X:%02X:%02X:%02X:%02X\r\n",
+        //       buff[0], buff[1], buff[2], buff[3], buff[4], buff[5], buff[6], buff[7], buff[8], buff[9], buff[10], buff[11]);
+
+        /* Starts sending a packet to host */
+        ecm_tx_busy_flag = true;
+        usbd_cdc_ecm_send_packet((uint8_t *)(uintptr_t)ecm_upld_desc_using.buff_addr, ecm_upld_desc_using.data_len);
+    }
+}
+/* ecm dnld */
+void ecm_receive_poll()
+{
+    if (emac_link_up_flag == false) {
+        return;
+    }
+
+    if (ecm_rx_busy_flag == false && (Ring_Buffer_Get_Length(&rb_emac_desc_dnld) > EMAC_DESC_SIZE)) {
+        /* get emac_tx/ecm_dnld buff desc */
+        Ring_Buffer_Read(&rb_emac_desc_dnld, (uint8_t *)&ecm_dnld_desc_using, EMAC_DESC_SIZE);
+
+        /* starts receiving a packet from host  */
+        ecm_rx_busy_flag = true;
+        usbd_cdc_ecm_receive_packet((uint8_t *)(uintptr_t)ecm_dnld_desc_using.buff_addr, EMAC_TX_BUFF_SIZE);
     }
 }
 
-void cdc_acm_data_send_with_dtr_test(void)
+void ecm_eamc_info_dump()
 {
-    if (dtr_enable) {
-        ep_tx_busy_flag = true;
-        usbd_ep_start_write(CDC_IN_EP2, write_buffer, 2048);
-        while (ep_tx_busy_flag) {
-        }
+    uint32_t tx_db_avail = bflb_emac_feature_control(emac0, EMAC_CMD_GET_TX_DB_AVAILABLE, 0);
+    uint32_t rx_db_avail = bflb_emac_feature_control(emac0, EMAC_CMD_GET_RX_DB_AVAILABLE, 0);
+
+    LOG_RI("\r\n");
+    LOG_I("USB-ECM DNLD: success cnt:%d, total size:%lldByte\r\n", ecm_dnld_cnt, ecm_dnld_size);
+    LOG_I("        dnld queue_cnt:%d\r\n", Ring_Buffer_Get_Length(&rb_emac_desc_dnld) / EMAC_DESC_SIZE);
+    LOG_I("USB-ECM UPLD: success cnt:%d, total size:%lldByte\r\n", ecm_upld_cnt, ecm_upld_size);
+    LOG_I("        upld queue_cnt:%d\r\n", Ring_Buffer_Get_Length(&rb_emac_desc_upld) / EMAC_DESC_SIZE);
+
+    if (emac0 == NULL) {
+        return;
     }
+
+    LOG_I("TX: success cnt:%d, error cnt:%d, total size:%lldByte\r\n", tx_success_cnt, tx_error_cnt, tx_total_size);
+    LOG_I("    push_cnt:%d, tx_db waiting:%d, tx_bd_ptr:%d\r\n", tx_push_cnt, (EMAC_TX_BD_BUM_MAX - tx_db_avail), bflb_emac_feature_control(emac0, EMAC_CMD_GET_TX_BD_PTR, 0));
+
+    LOG_I("RX: success cnt:%d, error cnt:%d, total size:%lldByte\r\n", rx_success_cnt, rx_error_cnt, rx_total_size);
+    LOG_I("    push_cnt:%d, rx_db waiting:%d, rx_bd_ptr:%d, busy cnt:%d\r\n", rx_push_cnt, (EMAC_RX_BD_BUM_MAX - rx_db_avail), bflb_emac_feature_control(emac0, EMAC_CMD_GET_RX_BD_PTR, 0), rx_busy_cnt);
+    LOG_RI("\r\n");
+
+}
+
+void ecm_emac_poll()
+{
+    static uint64_t status_time_ms = 0;
+    static uint64_t info_dump_time_ms = 0;
+
+    if (bflb_mtimer_get_time_ms() - status_time_ms > 100) {
+        status_time_ms = bflb_mtimer_get_time_ms();
+        ecm_emac_status_poll();
+    }
+
+    if (bflb_mtimer_get_time_ms() - info_dump_time_ms > 5000) {
+        info_dump_time_ms = bflb_mtimer_get_time_ms();
+        ecm_eamc_info_dump();
+    }
+
+    ecm_send_poll();
+
+    ecm_receive_poll();
 }

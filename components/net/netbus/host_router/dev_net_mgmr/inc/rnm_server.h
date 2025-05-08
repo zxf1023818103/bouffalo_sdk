@@ -158,6 +158,15 @@ int rnms_msg_output(rnms_t *rnm, const void *data, uint16_t data_length);
  */
 void rnms_notify_sta_ip_addr(rnms_t *rnm);
 
+#ifdef CFG_DUAL_ETH
+/**
+ * @brief  Notify host sdioeth IP address.
+ *
+ * @param rnm  RNM server.
+ */
+void rnms_notify_sdioeth_ip_addr(rnms_t *rnm);
+#endif
+
 /**
  * @brief  Register heartbeat callback.
  *

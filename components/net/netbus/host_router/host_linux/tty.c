@@ -105,7 +105,7 @@ static int tiny_write(struct tty_struct *tty,
     struct tiny_serial *tiny = tty->driver_data;
     int retval = -EINVAL;
     struct sk_buff *skb;
-    size_t bl;
+    size_t buff_len;
     u16 idx;
     size_t l = 0;
 
@@ -133,21 +133,21 @@ static int tiny_write(struct tty_struct *tty,
     idx = tty->index;
     while (count > 0) {
         struct bl_tty_queued_data *qd;
-        bl = min(2000, count);
-        skb = alloc_skb(bl, GFP_KERNEL);
+        buff_len = min(2000, count);
+        skb = alloc_skb(buff_len, GFP_KERNEL);
         if (!skb) {
             mutex_unlock(&gl_dev.mutex);
             retval = -ENOMEM;
             goto exit;
         }
-        skb_put(skb, bl);
+        skb_put(skb, buff_len);
         qd = (struct bl_tty_queued_data *)skb->cb;
         qd->tty_id = idx;
-        memcpy(skb->data, buffer + l, bl);
+        memcpy(skb->data, buffer + l, buff_len);
         skb_queue_tail(&dev->tty_msg_list, skb);
 
-        l += bl;
-        count -= bl;
+        l += buff_len;
+        count -= buff_len;
     }
     queue_work(dev->txworkqueue, &dev->tx_work);
 

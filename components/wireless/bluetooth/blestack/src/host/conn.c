@@ -239,6 +239,20 @@ void notify_disconnected(struct bt_conn *conn)
 	}
 }
 
+#if (CONFIG_BT_REMOTE_VERSION)
+void notify_remote_version(struct bt_conn *conn)
+{
+	struct bt_conn_cb *cb;
+
+	for (cb = callback_list; cb; cb = cb->_next) {
+		if (cb->remote_version) {
+			cb->remote_version(conn, conn->rv.version,
+				conn->rv.manufacturer, conn->rv.subversion);
+		}
+	}
+}
+#endif /* CONFIG_BT_REMOTE_VERSION */
+
 void notify_le_param_updated(struct bt_conn *conn)
 {
 	struct bt_conn_cb *cb;
@@ -273,6 +287,19 @@ void notify_le_phy_updated(struct bt_conn *conn, u8_t tx_phy, u8_t rx_phy)
 		}
 	}
 }
+
+#if defined(CONFIG_USER_DATA_LEN_UPDATE)
+void notify_le_datalen_updated(struct bt_conn *conn, u16_t tx_octets, u16_t tx_time, u16_t rx_octets,u16_t rx_time)
+{
+	struct bt_conn_cb *cb;
+
+	for (cb = callback_list; cb; cb = cb->_next) {
+		if (cb->le_datalen_updated) {
+			cb->le_datalen_updated(conn, tx_octets, tx_time, rx_octets, rx_time);
+		}
+	}
+}
+#endif
 
 bool le_param_req(struct bt_conn *conn, struct bt_le_conn_param *param)
 {
@@ -428,9 +455,6 @@ static void conn_update_timeout(struct k_work *work)
 		 * auto connect flag if it was set, instead just cancel
 		 * connection directly
 		 */
-		#if defined(BFLB_BLE_PATCH_FREE_CONN_UPDATE_WORK_WHEN_CANCEL_CONN_IN_CONNECT_STATE)
-		k_delayed_work_free(&conn->update_work);
-		#endif
 		bt_hci_cmd_send_sync(BT_HCI_OP_LE_CREATE_CONN_CANCEL, NULL, NULL);
 		return;
 	}
@@ -506,6 +530,12 @@ static struct bt_conn *conn_new(void)
 	struct bt_conn *conn = NULL;
 	int i;
 
+	/* avoid function reentry, different connections use the same conn[i]*/
+	#ifdef BFLB_BLE_PATCH_CONN_NEW_REENTRY_RISK
+	unsigned int key;
+	key = irq_lock();
+	#endif
+
 	for (i = 0; i < ARRAY_SIZE(conns); i++) {
 		if (!atomic_get(&conns[i].ref)) {
 			conn = &conns[i];
@@ -514,15 +544,26 @@ static struct bt_conn *conn_new(void)
 	}
 
 	if (!conn) {
+		#ifdef BFLB_BLE_PATCH_CONN_NEW_REENTRY_RISK
+		irq_unlock(key);
+		#endif
 		return NULL;
 	}
 
 	(void)memset(conn, 0, sizeof(*conn));
+
+	#ifdef BFLB_BLE_PATCH_CONN_NEW_REENTRY_RISK
+	atomic_set(&conn->ref, 1);
+	irq_unlock(key);
+	#endif
+
 	k_delayed_work_init(&conn->update_work, conn_update_timeout);
 
 	k_work_init(&conn->tx_complete_work, tx_complete_work);
 
+	#ifndef BFLB_BLE_PATCH_CONN_NEW_REENTRY_RISK
 	atomic_set(&conn->ref, 1);
+	#endif
 
 	return conn;
 }
@@ -601,6 +642,8 @@ struct bt_conn *bt_conn_create_br(const bt_addr_t *peer,
 		switch (conn->state) {
 		case BT_CONN_CONNECT:
 		case BT_CONN_CONNECTED:
+			//fix by bouffalo:not ref if conn of this peer has existed.
+			bt_conn_unref(conn);
 			return conn;
 		default:
 			bt_conn_unref(conn);
@@ -653,6 +696,8 @@ struct bt_conn *bt_conn_create_sco(const bt_addr_t *peer,const struct esco_para 
 		switch (sco_conn->state) {
 		case BT_CONN_CONNECT:
 		case BT_CONN_CONNECTED:
+			//fix by bouffalo:not ref if conn of this peer has existed.
+			bt_conn_unref(sco_conn);
 			return sco_conn;
 		default:
 			bt_conn_unref(sco_conn);
@@ -1724,6 +1769,10 @@ static void conn_cleanup(struct bt_conn *conn)
 {
 	struct net_buf *buf;
 
+	#if defined(BFLB_BLE_PATCH_AVOID_CONN_CLEANUP_FAILED_EXCUTED_RISK)
+	bt_conn_unref(conn);
+	#endif
+
 	/* Give back any allocated buffers */
 	while ((buf = net_buf_get(&conn->tx_queue, K_NO_WAIT))) {
 		if (tx_data(buf)->tx) {
@@ -1778,7 +1827,9 @@ int bt_conn_prepare_events(struct k_poll_event events[])
 		/* when bt_conn_set_state set state to BT_CONN_CONNECTED. There is a risk the state is 
 		 * set, but tx_queue isn't init.
 		 */
-		 if(conn->tx_queue._queue.hdl == 0){
+		if((conn->tx_queue._queue.hdl == 0) 
+			|| (conn->tx_queue._queue.poll_events.head == 0) 
+			|| (conn->tx_queue._queue.poll_events.next == 0)){
 			BT_WARN("conn %p tx_queue is not vaild", conn);
 			continue;
 		}
@@ -1947,12 +1998,17 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 		    old_state == BT_CONN_DISCONNECT) {
 			process_unack_tx(conn);
 			tx_notify(conn);
-
 			atomic_set_bit(conn->flags, BT_CONN_CLEANUP);
+			#if defined(BFLB_BLE_PATCH_AVOID_CONN_CLEANUP_FAILED_EXCUTED_RISK)
+			bt_conn_ref(conn);
+			#endif
 			k_poll_signal_raise(&conn_change, 0);
 			/* The last ref will be dropped during cleanup */
 		} else if (old_state == BT_CONN_CONNECT) {
 			/* conn->err will be set in this case */
+			#if defined(BFLB_BLE_PATCH_FREE_CONN_UPDATE_WORK_WHEN_CANCEL_CONN_IN_CONNECT_STATE)
+			k_delayed_work_free(&conn->update_work);
+			#endif
 			notify_connected(conn);
 			bt_conn_unref(conn);
 		} else if (old_state == BT_CONN_CONNECT_SCAN) {
@@ -1960,7 +2016,9 @@ void bt_conn_set_state(struct bt_conn *conn, bt_conn_state_t state)
 			if (conn->err) {
 				notify_connected(conn);
 			}
-
+			#if defined(BFLB_BLE_FREE_CONN_UPDATE_WORK_WHEN_DISCONNECT_IN_CONN_SCAN_STATE)
+			k_delayed_work_free(&conn->update_work);
+			#endif
 			bt_conn_unref(conn);
 		} else if (old_state == BT_CONN_CONNECT_DIR_ADV) {
 			/* this indicate Directed advertising stopped */
@@ -2344,9 +2402,6 @@ int bt_conn_disconnect(struct bt_conn *conn, u8_t reason)
 		bt_conn_set_state(conn, BT_CONN_DISCONNECTED);
 		if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
 			bt_le_scan_update(false);
-			#if defined(BFLB_BLE_FREE_CONN_UPDATE_WORK_WHEN_DISCONNECT_IN_CONN_SCAN_STATE)
-			k_delayed_work_free(&conn->update_work);
-			#endif
 		}
 		#if defined(BFLB_BLE_PATCH_AVOID_CONNECT_DISCONNECT_RISK)
 		conn->disconnect_was_triggered = false;
@@ -2371,9 +2426,6 @@ int bt_conn_disconnect(struct bt_conn *conn, u8_t reason)
 
 		if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
 			k_delayed_work_cancel(&conn->update_work);
-			#if defined(BFLB_BLE_PATCH_FREE_CONN_UPDATE_WORK_WHEN_CANCEL_CONN_IN_CONNECT_STATE)
-			k_delayed_work_free(&conn->update_work);
-			#endif
 			return bt_hci_cmd_send_sync(BT_HCI_OP_LE_CREATE_CONN_CANCEL,
 					       NULL, NULL);
 		}
@@ -2474,6 +2526,29 @@ int bt_conn_create_auto_stop(void)
 }
 #endif /* defined(CONFIG_BT_WHITELIST) */
 
+#if defined(BFLB_BLE_SUPPORT_CUSTOMIZED_SCAN_PARAMERS_IN_GENERAL_CONN_ESTABLISH)
+u16_t scan_intvl_in_general_conn_est = BT_GAP_SCAN_FAST_INTERVAL_MIN;
+u16_t scan_window_in_general_conn_est = BT_GAP_SCAN_FAST_INTERVAL_MIN;
+int bt_conn_set_scan_parameters_in_general_conn_establish(u16_t scan_interval, u16_t scan_window)
+{
+	if (scan_interval < 0x0004 || scan_interval > 0x4000) {
+		return -EINVAL;
+	}
+
+	if (scan_window < 0x0004 || scan_window > 0x4000) {
+		return -EINVAL;
+	}
+
+	if (scan_window > scan_interval) {
+		return -EINVAL;
+	}
+
+	scan_intvl_in_general_conn_est = scan_interval;
+	scan_window_in_general_conn_est = scan_window;
+	return 0;
+}
+#endif
+
 struct bt_conn *bt_conn_create_le(const bt_addr_le_t *peer,
 				  const struct bt_le_conn_param *param)
 {
@@ -2483,6 +2558,16 @@ struct bt_conn *bt_conn_create_le(const bt_addr_le_t *peer,
 	if (!atomic_test_bit(bt_dev.flags, BT_DEV_READY)) {
 		return NULL;
 	}
+
+	#if defined(BFLB_BLE_RESTRICT_CONN_ACTION_NOT_EXCEED_MAX_CONN)
+	if (bt_conn_get_remote_dev_info(NULL) == CONFIG_BT_MAX_CONN ||
+		(atomic_test_bit(bt_dev.flags, BT_DEV_ADVERTISING) &&
+		atomic_test_bit(bt_dev.flags,BT_DEV_ADVERTISING_CONNECTABLE) &&
+		bt_conn_get_remote_dev_info(NULL) == (CONFIG_BT_MAX_CONN - 1))){
+		BT_ERR("Cannot create le conn because of conn resource limitation(max_conn:%u)",CONFIG_BT_MAX_CONN);
+		return NULL;
+	}
+	#endif
 
 	if (!bt_le_conn_params_valid(param)) {
 		return NULL;
@@ -2514,7 +2599,14 @@ struct bt_conn *bt_conn_create_le(const bt_addr_le_t *peer,
 			return conn;
 		case BT_CONN_DISCONNECTED:
 			BT_WARN("Found valid but disconnected conn object");
-			goto start_scan;
+			//fix by bouffalo:not ref if conn of this peer has existed.
+#if defined(BFLB_BLE_PATCH_CONN_CREATE_LE_BEFORE_DISCONN_FULLY_COMPLETE_RISK)
+			bt_conn_unref(conn);
+			return NULL;
+#else
+			//fix end
+ 			goto start_scan;
+#endif
 		default:
 			bt_conn_unref(conn);
 			return NULL;
@@ -2535,7 +2627,9 @@ struct bt_conn *bt_conn_create_le(const bt_addr_le_t *peer,
 		return NULL;
 	}
 
+#ifndef BFLB_BLE_PATCH_CONN_CREATE_LE_BEFORE_DISCONN_FULLY_COMPLETE_RISK
 start_scan:
+#endif
 	bt_conn_set_param_le(conn, param);
 
 	bt_conn_set_state(conn, BT_CONN_CONNECT_SCAN);

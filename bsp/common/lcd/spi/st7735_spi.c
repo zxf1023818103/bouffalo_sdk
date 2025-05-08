@@ -63,6 +63,19 @@ const st7735_spi_init_cmd_t st7735_spi_init_cmds[] = {
     { 0xB2, "\x05\x59\x59", 3 },             /* Frame Rate Control in idle mode/8 colors */
     { 0xB3, "\x05\x59\x59\x05\x59\x59", 6 }, /* Frame Rate Control in partial mode/full colors */
 
+/* Color RGB order */
+#if ST7735_SPI_COLOR_ORDER
+    { 0x36, "\x08", 1 },
+#else
+    { 0x36, "\x00", 1 },
+#endif
+
+#if (ST7735_SPI_PIXEL_FORMAT == 1)
+    { 0x3A, "\x55", 1 }, /* Interface Pixel Format RGB565 */
+#elif (ST7735_SPI_PIXEL_FORMAT == 2)
+    { 0x3A, "\x66", 1 }, /* Interface Pixel Format RGB666 */
+#endif
+
 /* Color reversal */
 #if ST7735_SPI_COLOR_REVERSAL
     { 0xB4, "\x01", 1 },
@@ -143,38 +156,24 @@ int st7735_spi_init()
  */
 int st7735_spi_set_dir(uint8_t dir, uint8_t mir_flag)
 {
+    uint8_t dir_param[4] = { 0x00, 0xA0, 0xC0, 0x60 };
+    uint8_t mir_param[4] = { 0x40, 0x20, 0x80, 0xE0 };
     uint8_t param;
 
-    switch (dir) {
-        case 0:
-            if (!mir_flag)
-                param = 0x08;
-            else
-                param = 0x48;
-            break;
-        case 1:
-            if (!mir_flag)
-                param = 0x28;
-            else
-                param = 0xA8;
-            break;
-        case 2:
-            if (!mir_flag)
-                param = 0xC8;
-            else
-                param = 0x88;
-            break;
-        case 3:
-            if (!mir_flag)
-                param = 0xE8;
-            else
-                param = 0x68;
-
-            break;
-        default:
-            return -1;
-            break;
+    if (dir >= 4) {
+        return -1;
     }
+
+    if (mir_flag) {
+        param = mir_param[dir];
+    } else {
+        param = dir_param[dir];
+    }
+
+/* Color RGB order */
+#if ST7735_SPI_COLOR_ORDER
+    param |= 0x08;
+#endif
 
     lcd_spi_transmit_cmd_para(0x36, (void *)&param, 1);
 

@@ -108,6 +108,8 @@ enum cfgrwnx_msg_index {
     CFGRWNX_EXTERNAL_AUTH_EVENT,
     /// Sent by Supplicant to pass external authentication status (param: @ref cfgrwnx_external_auth_status)
     CFGRWNX_EXTERNAL_AUTH_STATUS_RESP,
+    /// Response to CFGRWNX_EXTERNAL_AUTH_STATUS_RESP (param: @ref cfgrwnx_resp)
+    CFGRWNX_EXTERNAL_AUTH_STATUS_RESP_RESP,
     /// Sent by Supplicant to start an AP (param: @ref cfgrwnx_start_ap)
     CFGRWNX_START_AP_CMD,
     /// Response to CFGRWNX_START_AP_CMD (param: @ref cfgrwnx_resp)
@@ -292,6 +294,10 @@ struct fhost_me_config_req
     bool dpsm;
     /// Indicates whether AMSDU shall be forced or not
     enum amsdu_tx amsdu_tx;
+    #ifdef CFG_LPM
+    /// chip_version
+    uint8_t chip_version;
+    #endif
 };
 
 /// structure for CFGRWNX_HW_FEATURE_RESP
@@ -302,6 +308,8 @@ struct cfgrwnx_hw_feature {
     struct fhost_me_config_req me_config;
     /// Channel configuration
     struct me_chan_config_req *chan;
+    /// ap mode setting
+    bool ap_11b_only;
 };
 
 /// structure for CFGRWNX_SET_KEY_CMD

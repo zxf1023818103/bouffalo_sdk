@@ -7,8 +7,8 @@
 #include "sdio_msgs.h"
 #include "wifi.h"
 
-#define SDIO_VENDOR_ID_BFL      0x424c
-#define SD_DEVICE_ID_BFL        0x0606
+#define SDIO_VENDOR_ID      0x424c
+#define SD_DEVICE_ID        0x0606
 
 #define BL_ETH_TX_TIMEOUT       (30 * HZ)
 

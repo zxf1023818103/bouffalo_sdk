@@ -6,7 +6,10 @@ if [ $EVENT = "IP_UPDATE" ]; then
     ifconfig bleth0 $BF_IP netmask $BF_MASK
     echo GW $BF_GW > /dev/kmsg
     route add default gw $BF_GW
-    echo "nameserver $BF_DNS" > /etc/resolv.conf
+    echo "nameserver $BF_DNS1" > /etc/resolv.conf
+    if [ "$BF_DNS2" != "0.0.0.0" ]; then
+        echo "nameserver $BF_DNS2" >> /etc/resolv.conf
+    fi
 
 elif [ $EVENT = "DISCONNECT" ]; then
     echo "Removing address" > /dev/kmsg

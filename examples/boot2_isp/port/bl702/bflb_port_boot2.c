@@ -84,7 +84,7 @@ void hal_boot2_get_efuse_cfg(boot2_efuse_hw_config *efuse_cfg)
     bflb_efuse_read_secure_boot((uint8_t *)efuse_cfg->sign, (uint8_t *)efuse_cfg->encrypted);
     /* Get hash:aes key slot 0 and slot1*/
     //EF_Ctrl_Read_AES_Key(0, (uint32_t *)efuse_cfg->pk_hash_cpu0, 8);
-    bflb_ef_ctrl_read_direct(NULL, EF_DATA_EF_KEY_SLOT_0_W0_OFFSET, efuse_cfg->pk_hash_cpu0, 8, 1);
+    bflb_ef_ctrl_read_direct(NULL, EF_DATA_EF_KEY_SLOT_0_W0_OFFSET, efuse_cfg->pk_hash_cpu[0], 8, 1);
     //EF_Ctrl_Read_Chip_ID(efuse_cfg->chip_id);
     bflb_efuse_get_chipid(efuse_cfg->chip_id);
     /* Get HBN check sign config */
@@ -552,32 +552,4 @@ uint32_t ATTR_TCM_SECTION hal_boot2_get_feature_flag(void)
 uint32_t hal_boot2_get_bootheader_offset(void)
 {
     return 0x00;
-}
-
-/****************************************************************************/ /**
- * @brief  get anti rollback version
- *
- * @param  return version
- *
- * @return
- *
-*******************************************************************************/
-int32_t hal_get_app_version_from_efuse(uint8_t *version)
-{
-    return ERROR;
-}
-
-int32_t hal_set_app_version_to_efuse(uint8_t version)
-{
-    return ERROR;
-}
-
-int32_t hal_get_boot2_version_from_efuse(uint8_t *version)
-{
-    return ERROR;
-}
-
-int32_t hal_set_boot2_version_to_efuse(uint8_t version)
-{
-    return ERROR;
 }

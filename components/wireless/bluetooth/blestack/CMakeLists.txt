@@ -112,6 +112,7 @@ endif()
 # 					src/host/hci_ecc.c \
 # 					src/host/l2cap.c \
 # 					src/host/uuid.c
+#ble_stack_srcs  += ../version_btble_component.c
 sdk_library_add_sources(
 	src/port/bl_port.c
 	src/common/atomic_c.c
@@ -145,7 +146,10 @@ sdk_library_add_sources(
 	src/host/hci_ecc.c
 	src/host/l2cap.c
 	src/host/uuid.c
-	src/host/version_bthost.c
+)
+
+sdk_library_add_sources(
+	../version_btble_component.c
 )
 # 
 # ifneq ($(CONFIG_BT_CONN), 0)
@@ -208,6 +212,9 @@ sdk_library_add_sources_ifdef(CONFIG_BT_SPP_SERVER
 # ifeq ($(CONFIG_BT_BREDR),1)
 # ble_stack_srcs   += src/cli_cmds/bredr_cli_cmds.c
 # endif
+#ifeq ($(CONFIG_BT_TP_CLI),1)
+#ble_stack_srcs   += src/cli_cmds/ble_tp_cli_cmd.c
+#endif
 # ifeq ($(CONFIG_BT_STACK_PTS),1)
 # ble_stack_srcs   += src/cli_cmds/pts_cli_cmds.c
 # endif
@@ -216,6 +223,7 @@ if(CONFIG_BT_STACK_CLI)
 	sdk_library_add_sources(src/cli_cmds/ble_cli_cmds.c)
 	sdk_library_add_sources_ifdef(CONFIG_BT_BREDR src/cli_cmds/bredr_cli_cmds.c)
 	sdk_library_add_sources_ifdef(CONFIG_BT_STACK_PTS src/cli_cmds/pts_cli_cmds.c)
+	sdk_library_add_sources_ifdef(CONFIG_BT_TP_CLI src/cli_cmds/ble_tp_cli_cmd.c)
 endif()
 # 
 # ifeq ($(CONFIG_BT_BAS_SERVER),1)
@@ -273,6 +281,8 @@ sdk_library_add_sources_ifdef(CONFIG_BT_BREDR
 	src/host/keys_br.c
 	src/host/l2cap_br.c
 )
+sdk_library_add_sources_ifdef(CONFIG_DYNAMIC_GATTS src/host/dynamic_gatts.c)
+
 # 
 # sbc_codec_srcs := 	src/sbc/dec/alloc.c \
 # 					src/sbc/dec/bitalloc.c \
@@ -344,3 +354,18 @@ sdk_add_include_directories_ifdef(CONFIG_BT_BREDR
 # 
 # COMPONENT_SRCDIRS := $(ble_stack_srcs_dirs)
 # 
+
+# ifdef CONFIG_BT_RX_STACK_SIZE
+# CPPFLAGS += -DCONFIG_BT_RX_STACK_SIZE=$(CONFIG_BT_RX_STACK_SIZE)
+# endif
+sdk_add_compile_definitions_ifdef(CONFIG_BT_RX_STACK_SIZE -DCONFIG_BT_RX_STACK_SIZE=${CONFIG_BT_RX_STACK_SIZE})
+
+# ifdef CONFIG_BT_WORK_QUEUE_STACK_SIZE
+# CPPFLAGS += -DCONFIG_BT_WORK_QUEUE_STACK_SIZE=$(CONFIG_BT_WORK_QUEUE_STACK_SIZE)
+# endif
+sdk_add_compile_definitions_ifdef(CONFIG_BT_WORK_QUEUE_STACK_SIZE -DCONFIG_BT_WORK_QUEUE_STACK_SIZE=${CONFIG_BT_WORK_QUEUE_STACK_SIZE})
+
+# ifeq ($(CONFIG_BLE_ADV_TWO_PAYLOAD_IN_ONE_ADV_INTERVAL_WITH_ROME_CODE),1)
+#     CFLAGS += -DCFG_BLE_ADV_TWO_PAYLOAD_IN_ONE_ADV_INTERVAL_WITH_ROME_CODE
+# endif
+sdk_add_compile_definitions_ifdef(CONFIG_BLE_ADV_TWO_PAYLOAD_IN_ONE_ADV_INTERVAL_WITH_ROME_CODE -DCFG_BLE_ADV_TWO_PAYLOAD_IN_ONE_ADV_INTERVAL_WITH_ROME_CODE)

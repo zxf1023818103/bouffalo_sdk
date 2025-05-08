@@ -1,11 +1,9 @@
 #ifndef __WIFI_MGMR_H_
 #define __WIFI_MGMR_H_
 
+#include "mac_types.h"
 #include "wifi_mgmr_ext.h"
 #include "rtos_al.h"
-#include "export/rwnx_config.h"
-#include "export/compiler.h"
-#include "export/phy.h"
 
 #define MAC_ADDR_LIST(m) (m)[0], (m)[1], (m)[2], (m)[3], (m)[4], (m)[5]
 
@@ -44,7 +42,7 @@ typedef struct wifi_mgmr {
     //router info for sta mode
     wifi_mgmr_connect_ind_stat_info_t wifi_mgmr_stat_info;
     //sta info for AP mode
-    wifi_mgmr_sta_basic_info_t ap_sta_info[NX_REMOTE_STA_MAX];
+    wifi_mgmr_sta_basic_info_t ap_sta_info[CFG_STA_MAX];
     //ap info for AP mode
     wifi_mgmr_ap_info_t ap_info;
     /*Feature Bits*/
@@ -62,6 +60,9 @@ typedef struct wifi_mgmr {
     uint8_t num_sta;
     uint32_t use_dhcpd;
     uint32_t flags;
+
+    uint8_t sta_mode;
+    uint8_t ap_mode;
 } wifi_mgmr_t;
 extern wifi_mgmr_t wifiMgmr;
 

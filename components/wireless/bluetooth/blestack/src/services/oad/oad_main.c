@@ -561,7 +561,7 @@ void oad_service_enable(app_check_oad_cb cb)
         return;
     }
     BT_WARN("Active PT:%d,Age %d\r\n", active_id, pt_table_stuff[active_id].pt_table.age);
-    my_dump_partition(&pt_table_stuff[active_id]);
+    //my_dump_partition(&pt_table_stuff[active_id]);
 #endif
     k_delayed_work_init(&oad_env.upgrd_work, ota_finish);
 }

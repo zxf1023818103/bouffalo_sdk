@@ -30,16 +30,6 @@
 
 #if defined LCD_DPI_ILI9488
 
-/* Select SPI Initialize interface pin */
-#if ILI9488_DPI_INIT_INTERFACE == 1
-
-#define ILI9488_SPI_CS_HIGH bflb_gpio_set(ili9488_gpio, ILI9488_DPI_SPI_CS_PIN)
-#define ILI9488_SPI_CS_LOW  bflb_gpio_reset(ili9488_gpio, ILI9488_DPI_SPI_CS_PIN)
-#define ILI9488_SPI_DC_HIGH bflb_gpio_set(ili9488_gpio, ILI9488_DPI_SPI_DC_PIN)
-#define ILI9488_SPI_DC_LOW  bflb_gpio_reset(ili9488_gpio, ILI9488_DPI_SPI_DC_PIN)
-
-#endif
-
 #if (ILI9488_DPI_PIXEL_FORMAT == 1)
 #define ILI9488_DPI_COLOR_DEPTH 16
 typedef uint16_t ili9488_dpi_color_t;

@@ -11,7 +11,7 @@ void wifi_scan_cmd(int argc, char *argv[]);
 void wifi_connect_cmd(int argc, char *argv[]);
 void wifi_disconnect_cmd(int argc, char *argv[]);
 void lwip_cmd(int argc, char *argv[]);
-#if NX_FHOST_MONITOR
+#ifdef CFG_FHOST_MONITOR
 void cmd_wifi_sniffer_on(int argc, char *argv[]);
 void cmd_wifi_sniffer_off(int argc, char *argv[]);
 #endif
@@ -42,3 +42,4 @@ void cmd_iperf(int argc, char *argv[]);
 #endif
 void cmd_rc(int argc, char *argv[]);
 void cmd_rate(int argc, char *argv[]);
+void cmd_wifi_mode_set (int argc, char *argv[]);

@@ -17,6 +17,9 @@
 #include "fatfs_diskio_register.h"
 #include "ff.h"
 #include "log.h"
+// #include "bl616_glb.h"
+
+#define f_unmount(path) f_mount(0, path, 0)
 
 FATFS fs;
 __attribute((aligned(64))) static uint32_t workbuf[4096];
@@ -29,7 +32,7 @@ MKFS_PARM fs_para = {
     .au_size = 512 * 32, /* Cluster size (byte) */
 };
 
-void filesystem_init(void)
+int filesystem_init(void)
 {
     FRESULT ret;
 
@@ -46,26 +49,30 @@ void filesystem_init(void)
 
         if (ret != FR_OK) {
             MSP_LOGE("fail to make filesystem %d", ret);
-            _CALL_ERROR();
+            // _CALL_ERROR();
+            return ret;
         }
 
         if (ret == FR_OK) {
             MSP_LOGI("done with formatting.");
             MSP_LOGI("first start to unmount.");
-            ret = f_mount(NULL, "/sd", 1);
+            ret = f_unmount("/sd");
             MSP_LOGI("then start to remount.");
         }
     } else if (ret != FR_OK) {
         MSP_LOGE("fail to mount filesystem,error= %d", ret);
         MSP_LOGE("SD card might fail to initialise.");
-        _CALL_ERROR();
+        // _CALL_ERROR();
+        return ret;
     } else {
-        MSP_LOGD("Succeed to mount filesystem\r\n");
+        MSP_LOGD("Succeed to mount filesystem");
     }
 
     if (ret == FR_OK) {
-        MSP_LOGI("FileSystem cluster size:%d-sectors (%d-Byte)\r\n", fs.csize, fs.csize * 512);
+        MSP_LOGI("FileSystem cluster size:%d-sectors (%d-Byte)", fs.csize, fs.csize * 512);
     }
+
+    return ret;
 }
 
 int msp_fatfs_flags(int flags)

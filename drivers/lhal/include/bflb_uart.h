@@ -13,9 +13,9 @@
 
 #if defined(BL602) || defined(BL702)
 #define UART_FIFO_MAX           32
-#elif defined(BL606P) || defined(BL808)
+#elif defined(BL808)
 #define UART_FIFO_MAX           32
-#elif defined(BL616) || defined(BL628)
+#elif defined(BL616)
 #define UART_FIFO_MAX           32
 #elif defined(BL702L)
 #define UART_FIFO_MAX           16
@@ -172,6 +172,7 @@
 
 #define UART_AUTO_BAUD_START             0
 #define UART_AUTO_BAUD_0X55              1
+#define UART_AUTO_BAUD_CLOSE             2
 
 // clang-format off
 #define IS_UART_DATABITS(type)   (((type) == UART_DATA_BITS_5) || \

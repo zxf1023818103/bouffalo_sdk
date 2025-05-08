@@ -113,7 +113,7 @@ static const struct net_device_ops bl_eth_netdev_ops = {
 };
 
 static const struct sdio_device_id bl_sdio_ids[] = {
-    { SDIO_DEVICE(SDIO_VENDOR_ID_BFL, SD_DEVICE_ID_BFL) },
+    { SDIO_DEVICE(SDIO_VENDOR_ID, SD_DEVICE_ID) },
     { 0 }
 };
 MODULE_DEVICE_TABLE(sdio, bl_sdio_ids);
@@ -1021,7 +1021,11 @@ static int bl_do_handshake(struct bl_eth_device *dev)
             continue;
         }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
         reinit_completion(&dev->req_done);
+#else
+        INIT_COMPLETION(dev->req_done);
+#endif
         ms = wait_for_completion_timeout(&dev->req_done, msecs_to_jiffies(500));
         if (ms) {
             pr_info("firmware version 0x%08x\n", dev->fw_version);
@@ -1125,7 +1129,7 @@ static int bl_sdio_probe(struct sdio_func *func, const struct sdio_device_id *id
     //carrier down and transmit queues stopped until packet from device
     netif_carrier_off(netdev);
     netif_tx_stop_all_queues(netdev);
-    dev_info(&func->dev, "BL6XY attached\n");
+    dev_info(&func->dev, "Device attached\n");
 
     mutex_lock(&gl_dev.mutex);
     gl_dev.status &= ~BL_DEVICE_STATUS_CARD_REMOVING;
@@ -1208,14 +1212,14 @@ static void bl_sdio_remove(struct sdio_func *func)
     destroy_workqueue(dev->txworkqueue);
     /* there is no flow in the net device, release the net device */
     unregister_netdev(dev->net);
-    free_netdev(dev->net);
     deinit_xfr_ctx(dev);
     kfree(dev->sdiocmd_buf);
+    free_netdev(dev->net);
 
     gl_dev.eth_dev = NULL;
     mutex_unlock(&gl_dev.mutex);
 
-    dev_info(&func->dev, "BL6XY disconnected\n");
+    dev_info(&func->dev, "Device disconnected\n");
 }
 
 static struct sdio_driver bl_sdio_drv = {

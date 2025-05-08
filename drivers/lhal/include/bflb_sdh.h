@@ -1,5 +1,5 @@
-#ifndef _BFLB_DBI_H
-#define _BFLB_DBI_H
+#ifndef _BFLB_SDH_H_
+#define _BFLB_SDH_H_
 
 #include "bflb_core.h"
 
@@ -10,6 +10,10 @@
 /** @addtogroup SDH
   * @{
   */
+
+#if defined(BL616) || defined(BL808)
+#define SDH_STD_V3
+#endif
 
 /** @defgroup SDH_TRANSFER_DIR Data transfer direction.
   * @{
@@ -84,12 +88,12 @@
  * |   1  |   1  | Link descriptor | Link to another descriptor                                        |
  * |------|------|-----------------|-------------------------------------------------------------------|
  */
-#if defined(BL616)
-#define USDHC_ADMA2_ADDRESS_ALIGN (1)
-#define USDHC_ADMA2_LENGTH_ALIGN  (1)
-#else
+#if defined(BL808)
 #define USDHC_ADMA2_ADDRESS_ALIGN (8)
 #define USDHC_ADMA2_LENGTH_ALIGN  (4)
+#else
+#define USDHC_ADMA2_ADDRESS_ALIGN (1)
+#define USDHC_ADMA2_LENGTH_ALIGN  (1)
 #endif
 
 #define SDH_ADMA2_DESC_LEN_MAX        (0xffff + 1)
@@ -205,7 +209,7 @@
 #define SDH_ERROR_STA_AUTO_CMD_ERR    (1 << (16 + 8))   /*!< Auto send cmd12 or cmd23 error */
 #define SDH_ERROR_STA_ADMA_ERR        (1 << (16 + 9))   /*!< ADMA error */
 #define SDH_ERROR_STA_TUNING_ERROR    (1 << (16 + 10))  /*!< Tuning error */
-#if defined(BL616) || defined(BL606P) || defined(BL808) /*!< Vendor specific error */
+#ifdef SDH_STD_V3                                       /*!< Vendor specific error */
 #define SDH_ERROR_STA_SPI_MODE_ERR     (1 << (16 + 12)) /*!< SPI token error */
 #define SDH_ERROR_STA_AXI_BUS_ERR      (1 << (16 + 13)) /*!< AXI bus response error */
 #define SDH_ERROR_STA_CMD_COMP_TIMEOUT (1 << (16 + 14)) /*!< Command completion signal timeout */
@@ -215,7 +219,7 @@
   * @}
   */
 
-/** @defgroup SDH_CMD Normal interrupt status.
+/** @defgroup SDH_CMD feature cmd.
   * @{
   */
 enum {
@@ -256,9 +260,12 @@ enum {
     SDH_CMD_SET_DRIVER_TYPE,
     SDH_CMD_SET_SIG_VOL_1V8_EN,
     SDH_CMD_SET_UHS_MODE,
+    SDH_CMD_SET_ASYNC_INT_EN,
 
+#ifdef SDH_STD_V3
     SDH_CMD_ACTIVE_CLK_OUT,
     SDH_CMD_FORCE_CLK_OUTPUT,
+#endif
 };
 /**
   * @}

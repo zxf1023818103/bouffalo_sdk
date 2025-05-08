@@ -32,8 +32,16 @@
 #ifndef LWIP_HDR_LWIPOPTS_H__
 #define LWIP_HDR_LWIPOPTS_H__
 
+#ifdef CFG_DUAL_ETH
+#define IP_FORWARD                      1
+#define BL_IP_FORWARD                   1
+#define IP_NAPT                         1
+#define IP_NAPT_MAX                     512
+#endif
+
 #define LWIP_NETIF_API     1
 #define LWIP_DEBUG         1
+#define LWIP_NETIF_HOSTNAME 1
 #define LWIP_STATS_DISPLAY 1
 #define SOCKETS_DEBUG      LWIP_DBG_OFF
 #ifdef BL616_DHCP_DEBUG
@@ -81,6 +89,7 @@
 #define TCP_SND_BUF                   (4 * MAC_TXQ_DEPTH * TCP_MSS)
 
 #define TCP_QUEUE_OOSEQ               1
+#define TCP_OOSEQ_MAX_PBUFS           MAC_RXQ_DEPTH
 #define MEMP_NUM_TCP_SEG              ((4 * TCP_SND_BUF) / TCP_MSS)
 #define MEMP_NUM_PBUF                 (TCP_SND_BUF / TCP_MSS)
 #define PBUF_POOL_SIZE                0

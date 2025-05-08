@@ -298,7 +298,7 @@ static void wifi_ota_use_lwip_httpc(int argc, char **argv)
     /* Set flash operation function, read via xip */
     pt_table_set_flash_operation(bflb_flash_erase, bflb_flash_write, bflb_flash_read);
 
-    active_id = pt_table_get_active_partition_need_lock(pt_table_stuff);
+    active_id = pt_table_get_active_partition_from_ram(pt_table_stuff);
     if (PT_TABLE_ID_INVALID == active_id) {
         printf("No valid PT\r\n");
         return;
@@ -334,7 +334,7 @@ static void wifi_ota_use_lwip_httpc(int argc, char **argv)
     }
     printf("Done\r\n");
 
-    if (argc < 3) {
+    if (argc < 4) {
         printf("%s", PING_USAGE);
         return;
     }

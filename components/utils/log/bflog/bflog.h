@@ -604,7 +604,7 @@ extern void bflog_unix2time(uint32_t timestamp, bflog_tm_t *time);
 #define BFLOG_LEVEL_ENABLE BFLOG_LEVEL_INFO
 #endif
 
-#ifdef _WIN32
+#ifdef _WIN32_DEBUG_PATH
 #define __PATH_DELIMITER '\\'
 #else
 #define __PATH_DELIMITER '/'

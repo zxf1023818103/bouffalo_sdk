@@ -29,26 +29,34 @@
  ****************************************************************************************
  */
 #include <stdarg.h>
+#include <stdint.h>
 
+#if __has_include("export/rwnx_config.h")
 #include "export/rwnx_config.h"
 #include "export/compiler.h"
 #include "export/mac/mac.h"
-#include "rtos_al.h"
-#include "net_al.h"
-#include "fhost_api.h"
 #include "export/dbg/trace_compo.h"
 #include "export/dbg/dbg_assert.h"
 #include "export/export_macsw.h"
+#endif
+
+#define VERSION_FHOST_NUMBER "1.7.10"
+#define VERSION_FHOST_MAJOR 1
+#define VERSION_FHOST_MINOR 7
+#define VERSION_FHOST_PATCH 10
 uint32_t dbg_vsnprintf_offset(char *buffer, uint32_t size, uint32_t offset, const char *fmt, va_list args);
 #define dbg_vsnprintf(buffer, size, fmt, args) dbg_vsnprintf_offset(buffer, size, 0, fmt, args)
 
+#include "rtos_al.h"
+#include "net_al.h"
+#include "fhost_api.h"
+
 #if defined(FHOST_PRINTF_DIABLE)
 #define fhost_printf(...)
-#define fhost_print(x, ...) fhost_printf(__VA_ARGS__)
 #else
-#define fhost_print(x, ...) printf(__VA_ARGS__)
 #define fhost_printf(...) printf(__VA_ARGS__)
 #endif
+#define fhost_print(x, ...) fhost_printf(__VA_ARGS__)
 
 #define INVALID_VIF_IDX 0xFF
 
@@ -172,9 +180,9 @@ struct fhost_vif_tag
 struct fhost_env_tag
 {
     /// Table of RTOS network interface structures
-    struct fhost_vif_tag vif[NX_VIRT_DEV_MAX];
+    struct fhost_vif_tag vif[CFG_VIF_MAX];
     /// Table linking the MAC VIFs to the FHOST VIFs
-    struct fhost_vif_tag *mac2fhost_vif[NX_VIRT_DEV_MAX];
+    struct fhost_vif_tag *mac2fhost_vif[CFG_VIF_MAX];
 };
 
 /// Generate fhost msg ID from a type and an index
@@ -419,6 +427,8 @@ int fhost_ap_cfg(int fhost_vif_idx, struct fhost_vif_ap_cfg *cfg, bool mesh_mode
  */
 int fhost_get_sta_idx(struct fhost_vif_tag *fhost_vif, uint8_t table_max_size,
                       uint8_t *idx_table);
+
+int fhost_vif_is_up(int fhost_vif_idx);
 
 /// @}
 

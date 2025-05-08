@@ -418,7 +418,6 @@ void ATTR_TCM_SECTION bl_lp_xip_recovery(void)
         /* Delete this line before the other flash_2_wires glitch */
         // bflb_sflash_disable_burst_wrap(pFlashCfg);
 
-        jdec_id = ((jdec_id & 0xff) << 16) + (jdec_id & 0xff00) + ((jdec_id & 0xff0000) >> 16);
     } while (jdec_id != iot2lp_para->flash_jdec_id);
 
     bl_lp_debug_record_time(iot2lp_para, "read flash jdec_id");

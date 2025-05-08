@@ -7,7 +7,7 @@
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
 
-#include <export/bl_fw_api.h>
+#include <bl_fw_api.h>
 #include <wifi_mgmr_ext.h>
 #include <wifi_mgmr.h>
 
@@ -29,7 +29,14 @@ static wifi_conf_t conf = {
     .country_code = "CN",
 };
 
-void wifi_event_handler(uint32_t code)
+static void hostrouter(void *arg)
+{
+    extern int hostrouter_init(void);
+    hostrouter_init();
+    vTaskDelete(NULL);
+}
+
+void wifi_event_handler(uint32_t code, uint32_t code1)
 {
 #ifdef BL_HOSTROUTER_ENABLE
     extern void rnm_event_handler(uint32_t code);
@@ -45,8 +52,8 @@ void wifi_event_handler(uint32_t code)
 #ifdef USBWIFI_ENABLE
             usbwifi_start(&g_usbwifi);
 #elif defined(BL_HOSTROUTER_ENABLE)
-extern int hostrouter_init(void);
-            hostrouter_init();
+            static TaskHandle_t hostrouter_task;
+            xTaskCreate(hostrouter, (char *)"hostrouter", 512, NULL, 10, &hostrouter_task);
 #endif
         } break;
         case CODE_WIFI_ON_SCAN_DONE: {
@@ -72,10 +79,10 @@ extern int hostrouter_init(void);
             LOG_I("[APP] [EVT] %s, CODE_WIFI_ON_AP_STOPPED\r\n", __func__);
         } break;
         case CODE_WIFI_ON_AP_STA_ADD: {
-            LOG_I("[APP] [EVT] [AP] [ADD] %lld\r\n", xTaskGetTickCount());
+            LOG_I("[APP] [EVT] [AP] [ADD] %lld, code1:%u\r\n", xTaskGetTickCount(), code1);
         } break;
         case CODE_WIFI_ON_AP_STA_DEL: {
-            LOG_I("[APP] [EVT] [AP] [DEL] %lld\r\n", xTaskGetTickCount());
+            LOG_I("[APP] [EVT] [AP] [DEL] %lld, code1:%u\r\n", xTaskGetTickCount(), code1);
         } break;
         default: {
             LOG_I("[APP] [EVT] Unknown code %u \r\n", code);

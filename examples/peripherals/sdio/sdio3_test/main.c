@@ -1,16 +1,18 @@
 #include "bflb_mtimer.h"
-#include "board.h"
-
-#include "bl628_glb.h"
-
 #include "bflb_gpio.h"
 #include "bflb_sdio3.h"
+
+#if defined(BL628)
+#include "bl628_glb.h"
+#endif
+
+#include "board.h"
 
 #define DBG_TAG "MAIN"
 #include "log.h"
 
-#define SDIO3_DBG(a, ...)   LOG_I(a, ##__VA_ARGS__)
-// #define SDIO3_DBG(a, ...)
+// #define SDIO3_DBG(a, ...)   LOG_I(a, ##__VA_ARGS__)
+#define SDIO3_DBG(a, ...)
 
 #define SDIO_TEST_FUNC_NUM  (SDIO3_FUNC_NUM_MAX)
 
@@ -25,8 +27,8 @@ typedef struct {
 } sdio_tlv_t;
 
 struct bflb_device_s *sdio3_hd;
-volatile uint32_t f1_dnld_cnt, f1_upld_cnt, f1_error_cnt;
-volatile uint32_t f2_dnld_cnt, f2_upld_cnt, f2_error_cnt;
+volatile uint32_t f1_dnld_cnt, f1_upld_cnt;
+volatile uint32_t f2_dnld_cnt, f2_upld_cnt;
 
 struct bflb_sdio3_config_s sdio3_cfg = {
     .func_num = SDIO_TEST_FUNC_NUM,                            /*!< function num: 1~2. */
@@ -51,6 +53,8 @@ void sdio3_gpio_init()
 
 void sdio3_irq_cb_func1_dnld_cpl(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
 {
+    f1_dnld_cnt++;
+
     /* invalid cache */
     bflb_l1c_dcache_invalidate_range(trans_desc->buff, trans_desc->data_len);
 
@@ -62,25 +66,25 @@ void sdio3_irq_cb_func1_dnld_cpl(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
     /* push to upld queue*/
     trans_desc->data_len = tlv_len;
     bflb_sdio3_upld_push(sdio3_hd, trans_desc);
-
-    f1_dnld_cnt++;
 }
 
 void sdio3_irq_cb_func1_upld_cpl(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
 {
+    f1_upld_cnt++;
+
     SDIO3_DBG("func1_upld_cpl %d, push buff to dnld queue\r\n\r\n", f1_upld_cnt);
 
     /* max upld buff len */
     trans_desc->buff_len = SDIO3_FN1_TEST_SIZE;
     /* push to dnld queue */
     bflb_sdio3_dnld_push(sdio3_hd, trans_desc);
-
-    f1_upld_cnt++;
 }
 
 #if (SDIO_TEST_FUNC_NUM == 2)
 void sdio3_irq_cb_func2_dnld_cpl(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
 {
+    f2_dnld_cnt++;
+
     /* invalid cache */
     bflb_l1c_dcache_invalidate_range(trans_desc->buff, trans_desc->data_len);
 
@@ -92,27 +96,24 @@ void sdio3_irq_cb_func2_dnld_cpl(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
     /* push to upld queue*/
     trans_desc->data_len = tlv_len;
     bflb_sdio3_upld_push(sdio3_hd, trans_desc);
-
-    f2_dnld_cnt++;
 }
 
 void sdio3_irq_cb_func2_upld_cpl(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
 {
+    f2_upld_cnt++;
+
     SDIO3_DBG("func2_upld_cpl %d, push buff to dnld queue\r\n\r\n", f2_upld_cnt);
 
     /* max upld buff len */
     trans_desc->buff_len = SDIO3_FN1_TEST_SIZE;
     /* push to dnld queue */
     bflb_sdio3_dnld_push(sdio3_hd, trans_desc);
-
-    f2_upld_cnt++;
 }
 #endif
 
 void sdio3_irq_cb_soft_reset(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
 {
     LOG_I("sdio3 soft reset!\r\n");
-    int ret;
 
     /* free func1 buff */
     {
@@ -120,21 +121,13 @@ void sdio3_irq_cb_soft_reset(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
         int func1_free_n = 0;
         LOG_I("free func1 dnld queue buff\r\n");
         /* free func1 dnld queue buff */
-        while (1) {
-            ret = bflb_sdio3_dnld_pop(sdio3_hd, &func1_desc, 1);
-            if (ret != 0) {
-                break;
-            }
+        while (bflb_sdio3_dnld_pop(sdio3_hd, &func1_desc, 1) == 0) {
             free(func1_desc.buff);
             func1_free_n++;
         }
         LOG_I("free func1 upld queue buff\r\n");
         /* free func1 upld queue buff */
-        while (1) {
-            ret = bflb_sdio3_upld_pop(sdio3_hd, &func1_desc, 1);
-            if (ret != 0) {
-                break;
-            }
+        while (bflb_sdio3_upld_pop(sdio3_hd, &func1_desc, 1) == 0) {
             free(func1_desc.buff);
             func1_free_n++;
         }
@@ -147,21 +140,13 @@ void sdio3_irq_cb_soft_reset(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
         int func2_free_n = 0;
         LOG_I("free func2 dnld queue buff\r\n");
         /* free func1 dnld queue buff */
-        while (1) {
-            ret = bflb_sdio3_dnld_pop(sdio3_hd, &func2_desc, 2);
-            if (ret != 0) {
-                break;
-            }
+        while (bflb_sdio3_dnld_pop(sdio3_hd, &func2_desc, 2) == 0) {
             free(func2_desc.buff);
             func2_free_n++;
         }
         LOG_I("free func2 upld queue buff\r\n");
         /* free func1 upld queue buff */
-        while (1) {
-            ret = bflb_sdio3_upld_pop(sdio3_hd, &func2_desc, 2);
-            if (ret != 0) {
-                break;
-            }
+        while (bflb_sdio3_upld_pop(sdio3_hd, &func2_desc, 2) == 0) {
             free(func2_desc.buff);
             func2_free_n++;
         }
@@ -176,7 +161,7 @@ void sdio3_irq_cb_soft_reset(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
     /* card init ready */
     bflb_sdio3_feature_control(sdio3_hd, SDIO3_CMD_INIT_READY, 0);
 
-    LOG_I("push buff to func1 dnld_queue\r\n");
+    LOG_I("malloc buff and push to func1 dnld_queue\r\n");
     for (uint32_t i = 0; i < SDIO3_FUNC_QUEUE_NUM_MAX; i++) {
         void *buff = malloc(SDIO3_FN1_TEST_SIZE);
         if (buff == NULL) {
@@ -192,8 +177,11 @@ void sdio3_irq_cb_soft_reset(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
         };
         bflb_sdio3_dnld_push(sdio3_hd, &dnld_desc);
     }
+    /* card func ready */
+    bflb_sdio3_feature_control(sdio3_hd, SDIO3_CMD_SET_FUNC_CARD_READY, 1);
+
 #if (SDIO_TEST_FUNC_NUM == 2)
-    LOG_I("push buff to func2 dnld_queue\r\n");
+    LOG_I("malloc buff and push to func2 dnld_queue\r\n");
     for (uint32_t i = 0; i < SDIO3_FUNC_QUEUE_NUM_MAX; i++) {
         void *buff = malloc(SDIO3_FN2_TEST_SIZE);
         if (buff == NULL) {
@@ -209,6 +197,8 @@ void sdio3_irq_cb_soft_reset(void *arg, bflb_sdio3_trans_desc_t *trans_desc)
         };
         bflb_sdio3_dnld_push(sdio3_hd, &dnld_desc);
     }
+    /* card func ready */
+    bflb_sdio3_feature_control(sdio3_hd, SDIO3_CMD_SET_FUNC_CARD_READY, 2);
 #endif
 }
 
@@ -265,6 +255,8 @@ void sdio3_irq_cb(void *arg, uint32_t irq_event, bflb_sdio3_trans_desc_t *trans_
 
 void sdio3_test(void)
 {
+    uint32_t f1_dnld_cnt_last = 0, f1_upld_cnt_last = 0;
+    uint32_t f2_dnld_cnt_last = 0, f2_upld_cnt_last = 0;
     bool func1_ready = false;
     bool func2_ready = false;
 
@@ -272,9 +264,6 @@ void sdio3_test(void)
     bflb_glb_per_clock_ungate(GLB_AHB_CLOCK_SDU);
     bflb_glb_per_clock_ungate(GLB_AHB_CLOCK_USB20_SDU);
     bflb_glb_per_clock_ungate(GLB_AHB_CLOCK_USB_SDIO);
-    bflb_glb_ahb_mcu_software_reset(GLB_AHB_MCU_SW_SDU);
-
-    // bflb_glb_smid_vdd_sw_rstn(1);
 #endif
 
     sdio3_hd = bflb_device_get_by_name("sdio3");
@@ -290,7 +279,7 @@ void sdio3_test(void)
     bflb_sdio3_feature_control(sdio3_hd, SDIO3_CMD_INIT_READY, 0);
 
     /* malloc buff and link to dnld queue */
-    printf("push buff to func1 dnld_queue\r\n");
+    LOG_I("push buff to func1 dnld_queue\r\n");
     for (uint32_t i = 0; i < SDIO3_FUNC_QUEUE_NUM_MAX; i++) {
         void *buff = malloc(SDIO3_FN1_TEST_SIZE);
         if (buff == NULL) {
@@ -306,9 +295,11 @@ void sdio3_test(void)
         };
         bflb_sdio3_dnld_push(sdio3_hd, &dnld_desc);
     }
+    /* card func ready */
+    bflb_sdio3_feature_control(sdio3_hd, SDIO3_CMD_SET_FUNC_CARD_READY, 1);
 
 #if (SDIO_TEST_FUNC_NUM == 2)
-    printf("push buff to func2 dnld_queue\r\n");
+    LOG_I("push buff to func2 dnld_queue\r\n");
     for (uint32_t i = 0; i < SDIO3_FUNC_QUEUE_NUM_MAX; i++) {
         void *buff = malloc(SDIO3_FN2_TEST_SIZE);
         if (buff == NULL) {
@@ -324,10 +315,11 @@ void sdio3_test(void)
         };
         bflb_sdio3_dnld_push(sdio3_hd, &dnld_desc);
     }
+    /* card func ready */
+    bflb_sdio3_feature_control(sdio3_hd, SDIO3_CMD_SET_FUNC_CARD_READY, 2);
 #endif
 
     LOG_I("Waiting host ready...\r\n");
-
     while (1) {
         if (!func1_ready && bflb_sdio3_feature_control(sdio3_hd, SDIO3_CMD_GET_FUNC_HOST_READY, 1)) {
             LOG_I("sdio3 func1 host ready! \r\n");
@@ -361,6 +353,32 @@ void sdio3_test(void)
 
         bflb_mtimer_delay_ms(1);
     }
+
+    /* print info */
+    while (1) {
+        if (f1_dnld_cnt_last != f1_dnld_cnt || f1_upld_cnt_last != f1_upld_cnt) {
+            f1_dnld_cnt_last = f1_dnld_cnt;
+            f1_upld_cnt_last = f1_upld_cnt;
+            LOG_I("func1 test, dnld_cnt: %d, upld_cnt: %d\r\n", f1_dnld_cnt_last, f1_upld_cnt_last);
+        }
+
+        if (f2_dnld_cnt_last != f2_dnld_cnt || f2_upld_cnt_last != f2_upld_cnt) {
+            f2_dnld_cnt_last = f2_dnld_cnt;
+            f2_upld_cnt_last = f2_upld_cnt;
+            LOG_I("func1 test, dnld_cnt: %d, upld_cnt: %d\r\n", f2_dnld_cnt_last, f2_upld_cnt_last);
+        }
+
+#if 0
+        for (uint32_t i = 0; i < 200; i++) {
+            intptr_t flag = bflb_irq_save();
+            bflb_mtimer_delay_ms(1);
+            bflb_irq_restore(flag);
+            bflb_mtimer_delay_ms(1);
+        }
+#else
+        bflb_mtimer_delay_ms(500);
+#endif
+    }
 }
 
 int main(void)
@@ -371,6 +389,7 @@ int main(void)
 
     LOG_I("sdio3 test case\r\n");
 
+    /* sdio3 test */
     sdio3_test();
 
     LOG_I("sdio3 test case end\r\n");

@@ -96,5 +96,19 @@ static void cmd_wifi_config(int argc, char **argv)
     printf ("Wi-Fi SSID: \"%s\", PASSWORD: \"%s\"\r\n", wifi_ssid, wifi_pass);
 }
 
+static void cmd_stats_display(int argc, char **argv) 
+{
+    stats_display();
+}
+
+static int cmd_abort(int argc, char **argv)
+{
+    abort();
+    return 0;
+}
+
 SHELL_CMD_EXPORT_ALIAS(cmd_ifconfig, ifconfig, show information on network interfaces.);
 SHELL_CMD_EXPORT_ALIAS(cmd_wifi_config, wifi_config, config or show SSID and password.);
+SHELL_CMD_EXPORT_ALIAS(cmd_stats_display, stats, stats display lwip.);
+SHELL_CMD_EXPORT_ALIAS(cmd_abort, abort, user calls abort);
+

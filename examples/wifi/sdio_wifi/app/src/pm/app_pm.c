@@ -6,7 +6,7 @@
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
 
-#include <export/bl_fw_api.h>
+#include <bl_fw_api.h>
 #include <wifi_mgmr_ext.h>
 #include <wifi_mgmr.h>
 
@@ -185,6 +185,8 @@ static void cmd_tickless(int argc, char **argv)
         lpfw_cfg.dtim_origin = 10;
     }
 
+    bl_lp_fw_bcn_loss_cfg_dtim_default(lpfw_cfg.dtim_origin);
+
     printf("sta_ps %ld\r\n", wifi_mgmr_sta_ps_enter());
     enable_tickless = 1;
 }
@@ -197,6 +199,7 @@ static int test_tcp_keepalive(int argc, char **argv)
     char buffer[51];
     uint32_t pck_cnt = 0;
     uint32_t pck_total = 0;
+    uint8_t tcp_keepalive_period = 60;
 
     /* Create a socket */
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -215,8 +218,16 @@ static int test_tcp_keepalive(int argc, char **argv)
     dest.sin_port = htons(50001);
     inet_aton(argv[1], &dest.sin_addr);
 
-    if (argc == 4) {
-        pck_cnt = atoi(argv[3]);
+    if (argc >= 4) {
+        lpfw_cfg.dtim_origin = atoi(argv[3]);
+    }
+
+    if (argc >= 5) {
+        tcp_keepalive_period = atoi(argv[4]);
+    }
+
+    if (argc >= 6) {
+        pck_cnt = atoi(argv[5]);
         printf("keep alive pck:%ld\r\n");
     }
 
@@ -240,7 +251,10 @@ static int test_tcp_keepalive(int argc, char **argv)
 
 #ifdef LP_APP
     if (argc > 2) {
-        cmd_tickless(0, NULL);
+        bl_lp_fw_bcn_loss_cfg_dtim_default(lpfw_cfg.dtim_origin);
+
+        printf("sta_ps %ld\r\n", wifi_mgmr_sta_ps_enter());
+        enable_tickless = 1;
     }
 #endif
 
@@ -268,7 +282,7 @@ static int test_tcp_keepalive(int argc, char **argv)
         buffer[sizeof(buffer) -1] = 0;
         printf("read ret: %d, %s\r\n", ret, buffer);
 #endif
-        vTaskDelay(pdMS_TO_TICKS(30 * 1000));
+        vTaskDelay(pdMS_TO_TICKS(tcp_keepalive_period * 1000));
     }
 
     close(sockfd);

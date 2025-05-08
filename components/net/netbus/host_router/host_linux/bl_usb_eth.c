@@ -491,7 +491,7 @@ static int bl_usb_probe(struct usb_interface *intf, const struct usb_device_id *
 
     send_hello(dev);
 
-    dev_info(&intf->dev, "BL6XY attached\n");
+    dev_info(&intf->dev, "DEVICE attached\n");
 
     return 0;
 
@@ -534,16 +534,16 @@ static void bl_usb_disconnect(struct usb_interface *intf)
     destroy_workqueue(dev->workqueue);
 
     unregister_netdev(dev->net);
-    free_netdev(dev->net);
     kfree(dev->cmd_buf);
     tx_rx_deinit(dev);
 
     bl_usb_deinit(dev);
+    free_netdev(dev->net);
 
     gl_dev.eth_dev = NULL;
     mutex_unlock(&gl_dev.mutex);
 
-    dev_info(&intf->dev, "BL6XY disconnected\n");
+    dev_info(&intf->dev, "Device disconnected\n");
 }
 
 static int bl_usb_suspend(struct usb_interface *intf, pm_message_t message)

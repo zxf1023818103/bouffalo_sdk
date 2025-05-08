@@ -406,7 +406,6 @@ int main(void)
 
     hal_boot2_init_clock();
     blsp_boot2_start_timer();
-    hal_boot2_get_efuse_cfg(&g_efuse_cfg);
 
     bflb_eflash_loader_if_set(BFLB_EFLASH_LOADER_IF_UART);
     bflb_eflash_loader_if_init();
@@ -419,6 +418,7 @@ int main(void)
     bflb_uart_set_console(uartx);
 #endif
 
+    hal_boot2_get_efuse_cfg(&g_efuse_cfg);
     simple_malloc_init(g_malloc_buf, sizeof(g_malloc_buf));
     g_boot2_read_buf = vmalloc(BFLB_BOOT2_READBUF_SIZE);
     ret = hal_boot2_custom(NULL);

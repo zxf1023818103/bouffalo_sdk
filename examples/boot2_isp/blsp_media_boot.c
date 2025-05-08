@@ -211,7 +211,7 @@ static int32_t blsp_mediaboot_parse_one_group(boot2_image_config *boot_img_cfg, 
         addr += sizeof(boot_pk_config);
         /* Read signature*/
         BOOT2_MSG("R SIG1\r\n");
-        blsp_mediaboot_read_signaure(addr, &sig_len);
+        ret = blsp_mediaboot_read_signaure(addr, &sig_len);
         if (ret != BFLB_BOOT2_SUCCESS) {
             return ret;
         }
@@ -227,7 +227,7 @@ static int32_t blsp_mediaboot_parse_one_group(boot2_image_config *boot_img_cfg, 
         if (hal_boot2_get_grp_count() > 1) {
             /* Read signature2*/
             BOOT2_MSG("R SIG2\r\n");
-            blsp_mediaboot_read_signaure(addr, &sig_len);
+            ret = blsp_mediaboot_read_signaure(addr, &sig_len);
             if (ret != BFLB_BOOT2_SUCCESS) {
                 return ret;
             }
@@ -398,12 +398,14 @@ int32_t blsp_mediaboot_parse_one_group_xz(boot2_image_config *boot_img_cfg, uint
             if (!boot_img_cfg->basic_cfg.hash_ignore) {
                 //MSG("xz Cal hash len %d\r\n",boot_img_cfg->basic_cfg.img_len_cnt);
                 if(input != NULL){
+#ifdef CONFIG_ANTI_ROLLBACK
                     if (g_boot2_parse_xz_image_status == 1) {
                         ret = blsp_mediaboot_version_check(input, NULL);
                         if (ret != SUCCESS) {
                             return BFLB_BOOT2_IMG_Roll_Back;
                         }
                     }
+#endif
                     bflb_sha256_update(sha, &ctx_sha256, input, len);
                     g_boot2_parse_xz_image_status = 2;
                 }
@@ -465,7 +467,10 @@ int32_t blsp_mediaboot_version_check(uint8_t *image_start, uint8_t group_roll_ba
     uint32_t read_buf[3];
 
     /* get version_real from efuse */
-    if(SUCCESS == hal_get_app_version_from_efuse(&ef_app_version)){
+    if(SUCCESS == bflb_get_app_version_from_efuse(&ef_app_version)){
+        /* anti-rollback enabled, update itself's version first */
+        bflb_set_boot2_version_to_efuse(boot2_ver.anti_rollback);
+
         g_anti_ef_en = 1;
         g_anti_ef_app_ver = ef_app_version;
         BOOT2_MSG_DBG("efuse version %d\r\n", ef_app_version);
@@ -556,7 +561,7 @@ int32_t blsp_mediaboot_main(uint32_t group_boot_header_addr[BLSP_BOOT2_CPU_GROUP
                                              boot_header_addr[i] + BFLB_FW_IMG_OFFSET_AFTER_HEADER);
 
         if (ret != BFLB_BOOT2_SUCCESS) {
-            BOOT2_MSG_ERR("Group %d parse fail\r\n", i);
+            BOOT2_MSG_ERR("Group %d parse fail ret 0x%x\r\n", i, ret);
             group_roll_back[i] = 1;
         } else {
             valid_group_found++;
@@ -589,7 +594,7 @@ int32_t blsp_mediaboot_main(uint32_t group_boot_header_addr[BLSP_BOOT2_CPU_GROUP
         for (core = 0; core < BLSP_BOOT2_CPU_MAX; core++) {
             if (g_boot_img_cfg[i].cpu_cfg[core].boot_entry == 0) {
 #ifdef ARCH_RISCV
-                g_boot_img_cfg[i].cpu_cfg[core].boot_entry = BL_FLASH_XIP_BASE;
+                g_boot_img_cfg[i].cpu_cfg[core].boot_entry = HAL_BOOT2_FLASH_XIP_BASE;
 #endif
             }
         }
@@ -611,6 +616,7 @@ int32_t blsp_mediaboot_main(uint32_t group_boot_header_addr[BLSP_BOOT2_CPU_GROUP
         }
     }
 
+#ifdef CONFIG_ANTI_ROLLBACK
     if(ERROR == blsp_mediaboot_version_check(NULL, group_roll_back)) {
         for (i = 0; i < BLSP_BOOT2_CPU_GROUP_MAX; i++) {
             if (g_boot_img_cfg[i].img_valid) {
@@ -621,6 +627,7 @@ int32_t blsp_mediaboot_main(uint32_t group_boot_header_addr[BLSP_BOOT2_CPU_GROUP
         // arch_delay_ms(5);
         return BFLB_BOOT2_IMG_Roll_Back;
     }
+#endif
 
 #if BLSP_BOOT2_CPU_MAX > 1
     BOOT2_MSG_DBG("group[%d],core[%d] halt cpu %d\r\n", 0, 1, g_boot_img_cfg[0].cpu_cfg[1].halt_cpu);

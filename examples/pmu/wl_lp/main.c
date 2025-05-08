@@ -6,8 +6,9 @@
 #include <lwip/tcpip.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
+#include <lwip/etharp.h>
 
-#include "export/bl_fw_api.h"
+#include "bl_fw_api.h"
 #include "wifi_mgmr_ext.h"
 #include "wifi_mgmr.h"
 
@@ -26,9 +27,12 @@
 
 #include "rfparam_adapter.h"
 
+#include "wl_lp_app.h"
+
 #include "board.h"
 #include "board_rf.h"
 #include "shell.h"
+#include "assert.h"
 
 #define DBG_TAG "MAIN"
 #include "log.h"
@@ -241,6 +245,8 @@ static void cmd_tickless(int argc, char **argv)
         lpfw_cfg.dtim_origin = 10;
     }
 
+    bl_lp_fw_bcn_loss_cfg_dtim_default(lpfw_cfg.dtim_origin);
+
     printf("sta_ps %ld\r\n", wifi_mgmr_sta_ps_enter());
     enable_tickless = 1;
 }
@@ -253,6 +259,7 @@ static int test_tcp_keepalive(int argc, char **argv)
     char buffer[51];
     uint32_t pck_cnt = 0;
     uint32_t pck_total = 0;
+    uint8_t tcp_keepalive_period = 60;
 
     /* Create a socket */
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -271,9 +278,17 @@ static int test_tcp_keepalive(int argc, char **argv)
     dest.sin_port = htons(50001);
     inet_aton(argv[1], &dest.sin_addr);
 
-    if (argc == 4) {
-        pck_cnt = atoi(argv[3]);
-        printf("keep alive pck:%ld\r\n");
+    if (argc >= 4) {
+        lpfw_cfg.dtim_origin = atoi(argv[3]);
+    }
+
+    if (argc >= 5) {
+        tcp_keepalive_period = atoi(argv[4]);
+    }
+
+    if (argc >= 6) {
+        pck_cnt = atoi(argv[5]);
+        printf("keep alive pck:%ld\r\n", pck_cnt);
     }
 
     printf("tcp server ip: %s\r\n", argv[1]);
@@ -291,12 +306,18 @@ static int test_tcp_keepalive(int argc, char **argv)
         return -1;
     }
 
+    printf("Connect tcp server success.\r\n");
+
     /*---Get "Hello?"---*/
     memset(buffer, 'A', sizeof(buffer) - 1);
 
+    
 #ifdef LP_APP
     if (argc > 2) {
-        cmd_tickless(0, NULL);
+        bl_lp_fw_bcn_loss_cfg_dtim_default(lpfw_cfg.dtim_origin);
+
+        printf("sta_ps %ld\r\n", wifi_mgmr_sta_ps_enter());
+        enable_tickless = 1;
     }
 #endif
 
@@ -316,7 +337,7 @@ static int test_tcp_keepalive(int argc, char **argv)
         printf("SEQ:%ld WRITE SUCCESS %d\n", pck_total, ret);
 
         if (pck_cnt && (pck_total >= pck_cnt)) {
-            bl_pm_event_bit_set(PSM_EVENT_APP);
+            enable_tickless = 0;
             break;
         }
 #if 0
@@ -324,7 +345,7 @@ static int test_tcp_keepalive(int argc, char **argv)
         buffer[sizeof(buffer) -1] = 0;
         printf("read ret: %d, %s\r\n", ret, buffer);
 #endif
-        vTaskDelay(pdMS_TO_TICKS(30 * 1000));
+        vTaskDelay(pdMS_TO_TICKS(tcp_keepalive_period * 1000));
     }
 
     close(sockfd);
@@ -373,11 +394,55 @@ static void cmd_io_dbg(int argc, char **argv)
     }
 }
 
+TimerHandle_t xArpTimer = NULL;
+static void arp_send(TimerHandle_t xTimer) {
+
+    if (!wifi_mgmr_sta_state_get()) {
+        return;
+    }
+
+    LOCK_TCPIP_CORE();
+    do {
+        assert(netif_default != NULL);
+        etharp_request(netif_default, &netif_default->gw);
+    } while(0);
+    UNLOCK_TCPIP_CORE();
+}
+
+static void cmd_send_arp(int argc, char **argv)
+{
+    if (argc != 2) {
+    printf("Need param\r\n");
+    return;
+    }
+
+    if (atoi(argv[1])) {
+        if (xArpTimer) {
+            printf("Arp timer already created.\r\n");
+            return;
+        }
+        xArpTimer = xTimerCreate("traffic probe",  pdMS_TO_TICKS(55*1000), pdFALSE, (void*)0, arp_send);
+
+        xTimerStart(xArpTimer, 0);
+        printf("create period 55s arp timer success.\r\n");
+    } else {
+        if (xArpTimer) {
+            xTimerDelete(xArpTimer, portMAX_DELAY);
+            xArpTimer = NULL;
+            printf("Delete arp timer.\r\n");
+        }
+    }
+
+    return;
+
+}
+
 SHELL_CMD_EXPORT_ALIAS(cmd_tickless, tickless, cmd tickless);
 SHELL_CMD_EXPORT_ALIAS(cmd_wifi_lp, wifi_lp_test, wifi low power test);
 SHELL_CMD_EXPORT_ALIAS(test_tcp_keepalive, lpfw_tcp_keepalive, tcp keepalive test);
 SHELL_CMD_EXPORT_ALIAS(cmd_hbn_test, hbn_test, hbn test);
 SHELL_CMD_EXPORT_ALIAS(cmd_io_dbg, io_debug, cmd io_debug);
+SHELL_CMD_EXPORT_ALIAS(cmd_send_arp, arp_send, cmd send arp);
 #endif
 
 /**********************************************************
@@ -392,10 +457,25 @@ static void proc_hellow_entry(void *pvParameters)
         printf("%s: RISC-V rv64imafc\r\n", __func__);
 
 #ifdef LP_APP
-        printf("virtual time: %llu us\r\n", bl_lp_get_virtual_us());
+        bl_lp_info_t lp_info;
+        /* get lp info */
+        bl_lp_info_get(&lp_info);
+        /* clear lp info */
+        bl_lp_info_clear();
+
+        printf("\r\nVirtual time: %llu us\r\n", bl_lp_get_virtual_us());
+        printf("LowPower info dump:\r\n");
+        printf("LPFW try recv bcn: %d, loss %d\r\n", lp_info.lpfw_recv_cnt, lp_info.lpfw_loss_cnt);
+        printf("Total time %lldms\r\n", lp_info.time_total_us / 1000);
+        printf("PDS sleep: %lldms\r\n", lp_info.sleep_pds_us / 1000);
+        printf("LPFW active: %lldms\r\n", lp_info.active_lpfw_us / 1000);
+        printf("APP active: %lldms\r\n", lp_info.active_app_us / 1000);
+
+        uint64_t current = (lp_info.sleep_pds_us * 40 + lp_info.active_lpfw_us * 40000 + lp_info.active_app_us * 65000) / lp_info.time_total_us;
+        printf("Predict current: %llduA\r\n", current);
 #endif
 
-        vTaskDelay(5000);
+        vTaskDelay(10000);
     }
     vTaskDelete(NULL);
 }
@@ -662,6 +742,8 @@ int main(void)
 #endif
     bl_lp_sys_callback_register(lp_enter, NULL, lp_exit, NULL);
 #endif
+
+    ci_pm_test_init();
 
 #if 1
     /* coarse trim rc32k */

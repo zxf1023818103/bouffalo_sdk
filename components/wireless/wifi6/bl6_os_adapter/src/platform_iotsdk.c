@@ -16,7 +16,7 @@
 #ifdef LP_APP
 #include "bl_lp.h"
 #include "bl616_clock.h"
-#include "export/mac/mac_frame.h"
+#include "mac_frame.h"
 
 extern int lpfw_recal_rc32k(uint64_t beacon_timestamp_now_us, uint64_t rtc_timestamp_now_us, uint32_t mode);
 extern int32_t lpfw_calculate_beacon_delay(uint64_t beacon_timestamp_us, uint64_t rtc_timestamp_us, uint32_t mode);
@@ -27,7 +27,7 @@ extern int bl_lp_beacon_interval_update(uint16_t beacon_interval_tu);
 /* FIXME: Registers should not be read directly */
 /// Address of the MONOTONIC_COUNTER_2_LO register
 #define NXMAC_TSF_TIMER_LO_ADDR             0x24B080A4
-#define REG_PL_RD(addr)                     (*(volatile uint32_t *)(HW2CPU(addr)))
+#define REG_PL_RD(addr)                     (*(volatile uint32_t *)(addr))
 #define MAC_TSF_TIMER_LOW                    REG_PL_RD(NXMAC_TSF_TIMER_LO_ADDR)
 
 #endif

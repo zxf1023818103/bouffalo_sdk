@@ -19,16 +19,10 @@ static struct usbd_endpoint cdc_ecm_ep_data[3];
 #define CDC_ECM_MAX_PACKET_SIZE 64
 #endif
 
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_cdc_ecm_rx_buffer[CONFIG_CDC_ECM_ETH_MAX_SEGSZE];
-static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_cdc_ecm_tx_buffer[CONFIG_CDC_ECM_ETH_MAX_SEGSZE];
 static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_cdc_ecm_notify_buf[16];
 
-volatile uint8_t *g_cdc_ecm_rx_data_buffer = NULL;
-volatile uint32_t g_cdc_ecm_rx_data_length = 0;
-volatile uint32_t g_cdc_ecm_tx_data_length = 0;
-
-static volatile uint8_t g_current_net_status = 0;
 static volatile uint8_t g_cmd_intf = 0;
+static volatile uint8_t g_int_ep_busy = 0;
 
 static uint32_t g_connect_speed_table[2] = { CDC_ECM_CONNECT_SPEED_UPSTREAM,
                                              CDC_ECM_CONNECT_SPEED_DOWNSTREAM };
@@ -75,6 +69,7 @@ void usbd_cdc_ecm_send_notify(uint8_t notifycode, uint8_t value, uint32_t *speed
     }
 
     if (bytes2send) {
+        g_int_ep_busy = 1;
         usbd_ep_start_write(cdc_ecm_ep_data[CDC_ECM_INT_EP_IDX].ep_addr, g_cdc_ecm_notify_buf, bytes2send);
     }
 }
@@ -108,13 +103,9 @@ void cdc_ecm_notify_handler(uint8_t event, void *arg)
 {
     switch (event) {
         case USBD_EVENT_RESET:
-            g_current_net_status = 0;
-            g_cdc_ecm_rx_data_length = 0;
-            g_cdc_ecm_tx_data_length = 0;
-            g_cdc_ecm_rx_data_buffer = NULL;
+            g_int_ep_busy = 0;
             break;
         case USBD_EVENT_CONFIGURED:
-            usbd_ep_start_read(cdc_ecm_ep_data[CDC_ECM_OUT_EP_IDX].ep_addr, &g_cdc_ecm_rx_buffer[g_cdc_ecm_rx_data_length], CDC_ECM_MAX_PACKET_SIZE);
             break;
 
         default:
@@ -124,15 +115,7 @@ void cdc_ecm_notify_handler(uint8_t event, void *arg)
 
 void cdc_ecm_bulk_out(uint8_t ep, uint32_t nbytes)
 {
-    g_cdc_ecm_rx_data_length += nbytes;
-
-    if (nbytes < CDC_ECM_MAX_PACKET_SIZE) {
-        g_cdc_ecm_rx_data_buffer = g_cdc_ecm_rx_buffer;
-        USB_LOG_DBG("rxlen:%d\r\n", g_cdc_ecm_rx_data_length);
-        usbd_cdc_ecm_packet_recv_done((uint8_t *)g_cdc_ecm_rx_data_buffer, g_cdc_ecm_rx_data_length);
-    } else {
-        usbd_ep_start_read(ep, &g_cdc_ecm_rx_buffer[g_cdc_ecm_rx_data_length], CDC_ECM_MAX_PACKET_SIZE);
-    }
+    usbd_cdc_ecm_packet_recv_done(nbytes);
 }
 
 void cdc_ecm_bulk_in(uint8_t ep, uint32_t nbytes)
@@ -141,99 +124,38 @@ void cdc_ecm_bulk_in(uint8_t ep, uint32_t nbytes)
         /* send zlp */
         usbd_ep_start_write(ep, NULL, 0);
     } else {
-        g_cdc_ecm_tx_data_length = 0;
-        usbd_cdc_ecm_packet_send_done();
+        // g_cdc_ecm_tx_data_length = 0;
+        usbd_cdc_ecm_packet_send_done(nbytes);
     }
 }
 
 void cdc_ecm_int_in(uint8_t ep, uint32_t nbytes)
 {
-    if (g_current_net_status == 1) {
-        g_current_net_status = 2;
-        usbd_cdc_ecm_send_notify(CDC_ECM_NOTIFY_CODE_NETWORK_CONNECTION, CDC_ECM_NET_CONNECTED, g_connect_speed_table);
-    }
+    g_int_ep_busy = 0;
 }
 
 void usbd_cdc_ecm_send_connect_status(bool connected)
 {
+    while (g_int_ep_busy) {
+    }
+
     if (connected) {
-        g_current_net_status = 1;
         usbd_cdc_ecm_send_notify(CDC_ECM_NOTIFY_CODE_NETWORK_CONNECTION, CDC_ECM_NET_CONNECTED, NULL);
     } else {
-        g_current_net_status = 0;
         usbd_cdc_ecm_send_notify(CDC_ECM_NOTIFY_CODE_NETWORK_CONNECTION, CDC_ECM_NET_DISCONNECTED, NULL);
     }
 }
 
-uint8_t *usbd_cdc_ecm_get_tx_buffer(void)
-{
-    return g_cdc_ecm_tx_buffer;
-}
-
 int usbd_cdc_ecm_send_packet(uint8_t *buf, uint32_t len)
 {
-    if (g_cdc_ecm_tx_data_length > 0) {
-        return -USB_ERR_BUSY;
-    }
-    g_cdc_ecm_tx_data_length = len;
     USB_LOG_DBG("txlen:%d\r\n", len);
     return usbd_ep_start_write(cdc_ecm_ep_data[CDC_ECM_IN_EP_IDX].ep_addr, buf, len);
 }
 
-void usbd_cdc_ecm_start_read_next_packet(void)
+int usbd_cdc_ecm_receive_packet(uint8_t *buf, uint32_t len)
 {
-    g_cdc_ecm_rx_data_length = 0;
-    g_cdc_ecm_rx_data_buffer = NULL;
-    usbd_ep_start_read(cdc_ecm_ep_data[CDC_ECM_OUT_EP_IDX].ep_addr, g_cdc_ecm_rx_buffer, CDC_ECM_MAX_PACKET_SIZE);
+    return usbd_ep_start_read(cdc_ecm_ep_data[CDC_ECM_OUT_EP_IDX].ep_addr, buf, len);
 }
-
-#ifdef CONFIG_USBDEV_CDC_ECM_USING_LWIP
-struct pbuf *usbd_cdc_ecm_eth_rx(void)
-{
-    struct pbuf *p;
-
-    if (g_cdc_ecm_rx_data_buffer == NULL) {
-        return NULL;
-    }
-    p = pbuf_alloc(PBUF_RAW, g_cdc_ecm_rx_data_length, PBUF_POOL);
-    if (p == NULL) {
-        return NULL;
-    }
-    memcpy(p->payload, (uint8_t *)g_cdc_ecm_rx_buffer, g_cdc_ecm_rx_data_length);
-    p->len = g_cdc_ecm_rx_data_length;
-
-    g_cdc_ecm_rx_data_length = 0;
-    g_cdc_ecm_rx_data_buffer = NULL;
-    usbd_ep_start_read(cdc_ecm_ep_data[CDC_ECM_OUT_EP_IDX].ep_addr, g_cdc_ecm_rx_buffer, CDC_ECM_MAX_PACKET_SIZE);
-
-    return p;
-}
-
-int usbd_cdc_ecm_eth_tx(struct pbuf *p)
-{
-    struct pbuf *q;
-    uint8_t *buffer;
-
-    if (g_cdc_ecm_tx_data_length > 0) {
-        return -USB_ERR_BUSY;
-    }
-
-    if (p->tot_len > sizeof(g_cdc_ecm_tx_buffer)) {
-        p->tot_len = sizeof(g_cdc_ecm_tx_buffer);
-    }
-
-    buffer = g_cdc_ecm_tx_buffer;
-    for (q = p; q != NULL; q = q->next) {
-        memcpy(buffer, q->payload, q->len);
-        buffer += q->len;
-    }
-
-    g_cdc_ecm_tx_data_length = p->tot_len;
-
-    USB_LOG_DBG("txlen:%d\r\n", g_cdc_ecm_tx_data_length);
-    return usbd_ep_start_write(cdc_ecm_ep_data[CDC_ECM_IN_EP_IDX].ep_addr, g_cdc_ecm_tx_buffer, g_cdc_ecm_tx_data_length);
-}
-#endif
 
 struct usbd_interface *usbd_cdc_ecm_init_intf(struct usbd_interface *intf, const uint8_t int_ep, const uint8_t out_ep, const uint8_t in_ep)
 {
@@ -259,12 +181,16 @@ struct usbd_interface *usbd_cdc_ecm_init_intf(struct usbd_interface *intf, const
 void usbd_cdc_ecm_set_connect_speed(uint32_t speed[2])
 {
     memcpy(g_connect_speed_table, speed, 8);
+
+    while (g_int_ep_busy) {
+    }
+    usbd_cdc_ecm_send_notify(CDC_ECM_NOTIFY_CODE_CONNECTION_SPEED_CHANGE, NULL, g_connect_speed_table);
 }
 
-__WEAK void usbd_cdc_ecm_packet_recv_done(uint8_t *buf, uint32_t len)
+__WEAK void usbd_cdc_ecm_packet_recv_done(uint32_t nbytes)
 {
 }
 
-__WEAK void usbd_cdc_ecm_packet_send_done(void)
+__WEAK void usbd_cdc_ecm_packet_send_done(uint32_t nbytes)
 {
 }

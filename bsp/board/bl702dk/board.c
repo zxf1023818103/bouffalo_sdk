@@ -4,7 +4,10 @@
 #include "bflb_rtc.h"
 #include "bflb_flash.h"
 #include "bflb_spi_psram.h"
+#include "bflb_ef_ctrl.h"
+
 #include "bl702_glb.h"
+#include "ef_data_reg.h"
 #include "board.h"
 
 #include "mem.h"
@@ -268,7 +271,15 @@ void board_init(void)
     rtc = bflb_device_get_by_name("rtc");
 #endif
 
+#ifdef CONFIG_MBEDTLS
+    extern void bflb_sec_mutex_init(void);
+    bflb_sec_mutex_init();
+#endif
+
     bflb_irq_restore(flag);
+
+    printf("board init done\r\n");
+    printf("===========================\r\n");
 }
 
 void board_uartx_gpio_init()
@@ -424,6 +435,13 @@ void board_dvp_gpio_init(void)
 
     GLB_SWAP_EMAC_CAM_Pin(GLB_EMAC_CAM_PIN_CAM);
 }
+
+#if (defined CFG_BLUETOOTH_ENABLED) || (defined CFG_M154_ENABLED)
+void rf_full_cal_start_callback(uint32_t addr, uint32_t size)
+{
+    /** TBD: need to check memory access conflict on DMA and rf calculation*/
+}
+#endif
 
 #ifdef CONFIG_SHELL
 #ifdef CONFIG_PM

@@ -3,6 +3,7 @@
 
 #include <bl616_glb.h>
 #include <rfparam_adapter.h>
+#include <bl_sys.h>
 #include <bflb_wdg.h>
 #include <bflb_mtd.h>
 #if defined (CONFIG_EASYFLASH4)
@@ -15,10 +16,16 @@
 #include <timers.h>
 #include <mem.h>
 
+#include <lmac154.h>
+
 #include <lwip/tcpip.h>
 #include <lwip/dhcp6.h>
 
+#if __has_include("bl_fw_api.h")
+#include <bl_fw_api.h>
+#else
 #include <export/bl_fw_api.h>
+#endif
 #include <wifi_mgmr_ext.h>
 #undef __INLINE
 #undef __PACKED
@@ -68,6 +75,16 @@ static char otbr_wifi_pass[65];
 extern void __libc_init_array(void);
 extern void shell_init_with_task(struct bflb_device_s *shell);
 static void netif_status_callback(struct netif *netif);
+
+void vApplicationTickHook( void )
+{
+#ifdef BL616
+    lmac154_monitor();
+#endif
+#if CONFIG_LMAC154_LOG
+    lmac154_logs_output();
+#endif
+}
 
 int wifi_start_firmware_task(void)
 {
@@ -146,7 +163,6 @@ static void netif_status_callback(struct netif *netif)
         ADDRESS_SHOW_IDX_IPV6 = 1,
     } address_shown_t;
     static address_shown_t address_show_msk = 0;
-    bool isIPv6AddressAssigend = false;
     bool isIPv4AddressAssigned = false;
 
     if (netif->flags & NETIF_FLAG_UP) {
@@ -176,8 +192,8 @@ static void netif_status_callback(struct netif *netif)
                     if (0 == (address_show_msk & (1 << (i + ADDRESS_SHOW_IDX_IPV6)))) {
                         printf("IPv6 address %d: %s\r\n", i, ip6addr_ntoa(ip6addr));
                     }
-                    isIPv6AddressAssigend = true;
                 }
+
                 address_show_msk |= (1 << (i + ADDRESS_SHOW_IDX_IPV6));
             }
         }
@@ -206,11 +222,10 @@ static void netif_status_callback(struct netif *netif)
                     otPlatSettingsSet(NULL, 0xff02, (uint8_t *)otbr_wifi_pass, sizeof(otbr_wifi_pass));
                 }
             }
-        }
 
-        if (isIPv6AddressAssigend) {
             otbr_instance_routing_init();
         }
+
     }
     else {
         address_show_msk = 0;
@@ -268,6 +283,10 @@ int main(void)
 {
     otRadio_opt_t opt;
 
+#if !defined(BL702L)
+    bl_sys_rstinfo_init();
+#endif
+
     board_init();
 
     bflb_mtd_init();
@@ -284,6 +303,10 @@ int main(void)
 #endif
 
     __libc_init_array();
+
+#if CONFIG_LMAC154_LOG
+    lmac154_log_init();
+#endif
 
     uart0 = bflb_device_get_by_name("uart0");
     shell_init_with_task(uart0);

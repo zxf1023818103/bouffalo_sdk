@@ -46,6 +46,8 @@
 #define UDP_DEBUG                     LWIP_DBG_OFF
 #define ETHARP_DEBUG                  LWIP_DBG_OFF
 
+#define PBUF_DEBUG                    LWIP_DBG_OFF
+
 #define TCPIP_MBOX_SIZE               64
 #define TCPIP_THREAD_STACKSIZE        1024
 #define TCPIP_THREAD_PRIO             28
@@ -152,7 +154,6 @@
 /* ---------- Multi-cast options ---- */
 #define LWIP_IGMP               1
 #define LWIP_IPV6_MLD           1
-#define LWIP_ND6_RDNSS_MAX_DNS_SERVERS 1
 #define MEMP_NUM_MLD6_GROUP 300
 #define LWIP_MULTICAST_PING 1
 #define LWIP_MULTICAST_TX_OPTIONS 1
@@ -181,6 +182,7 @@ extern int *__errno(void);
 #define errno                         (*__errno())
 
 #define ETHARP_SUPPORT_STATIC_ENTRIES 1
+#define LWIP_HTTPD_FILE_EXTENSION 1
 
 #define LWIP_SUPPORT_CUSTOM_PBUF      1
 #ifdef HIGH_PERFORMANCE_PBUF

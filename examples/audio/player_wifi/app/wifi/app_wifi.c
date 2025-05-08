@@ -13,7 +13,7 @@
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
 
-#include "export/bl_fw_api.h"
+#include "bl_fw_api.h"
 #include "wifi_mgmr_ext.h"
 #include "wifi_mgmr.h"
 

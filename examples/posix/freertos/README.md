@@ -8,6 +8,7 @@ Only supports sem/mqueue/pthread/timer api
 |:----------------:|:------:|
 |BL602/BL604       |        |
 |BL702/BL704/BL706 |        |
+|BL702L/BL704L     |        |
 |BL616/BL618       |        |
 |BL808             |        |
 
@@ -23,6 +24,12 @@ make CHIP=bl602 BOARD=bl602dk
 
 ```
 make CHIP=bl702 BOARD=bl702dk
+```
+
+- BL702L/BL704L
+
+```
+make CHIP=bl702l BOARD=bl702ldk
 ```
 
 - BL616/BL618

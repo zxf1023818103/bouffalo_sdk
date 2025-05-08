@@ -13,12 +13,9 @@ struct bflb_dma_irq_callback dma_callback[1][8];
 #elif defined(BL616)
 const uint32_t dma_base[] = { 0x2000C000 };
 struct bflb_dma_irq_callback dma_callback[1][4];
-#elif defined(BL606P) || defined(BL808)
+#elif defined(BL808)
 const uint32_t dma_base[] = { 0x2000C000, 0x20071000, 0x30001000 };
 struct bflb_dma_irq_callback dma_callback[3][8];
-#elif defined(BL628)
-const uint32_t dma_base[] = { 0x20081000 };
-struct bflb_dma_irq_callback dma_callback[1][8];
 #endif
 
 void dma0_isr(int irq, void *arg)
@@ -35,7 +32,7 @@ void dma0_isr(int irq, void *arg)
     }
 }
 
-#if defined(BL606P) || defined(BL808)
+#if defined(BL808)
 void dma1_isr(int irq, void *arg)
 {
     uint32_t regval;
@@ -147,7 +144,7 @@ void bflb_dma_channel_deinit(struct bflb_device_s *dev)
 #endif
 }
 
-void bflb_dma_lli_config(struct bflb_device_s *dev,
+__UNUSED static void bflb_dma_lli_config(struct bflb_device_s *dev,
                          struct bflb_dma_channel_lli_pool_s *lli_pool,
                          uint32_t lli_count,
                          uint32_t src_addr,
@@ -279,13 +276,14 @@ int bflb_dma_channel_lli_reload(struct bflb_device_s *dev, struct bflb_dma_chann
     putreg32(lli_pool[0].dst_addr, channel_base + DMA_CxDSTADDR_OFFSET);
     putreg32(lli_pool[0].nextlli, channel_base + DMA_CxLLI_OFFSET);
     putreg32(lli_pool[0].control.WORD, channel_base + DMA_CxCONTROL_OFFSET);
-#if defined(BL616) || defined(BL606P) || defined(BL808) || defined(BL628)
+#if defined(BL616) || defined(BL808)
     /* clean cache, DMA does not pass through the cache */
     bflb_l1c_dcache_clean_range((uint32_t *)(uintptr_t)lli_pool, sizeof(struct bflb_dma_channel_lli_pool_s) * lli_count_used_offset);
 #endif
     return lli_count_used_offset;
 #endif
 }
+
 
 void bflb_dma_channel_lli_link_head(struct bflb_device_s *dev,
                                     struct bflb_dma_channel_lli_pool_s *lli_pool,
@@ -301,7 +299,7 @@ void bflb_dma_channel_lli_link_head(struct bflb_device_s *dev,
     lli_pool[used_lli_count - 1].nextlli = (uint32_t)(uintptr_t)&lli_pool[0];
 
     putreg32(lli_pool[0].nextlli, channel_base + DMA_CxLLI_OFFSET);
-#if defined(BL616) || defined(BL606P) || defined(BL808) || defined(BL628)
+#if defined(BL616) || defined(BL808)
     /* clean cache, DMA does not pass through the cache */
     bflb_l1c_dcache_clean_range((uint32_t *)lli_pool, sizeof(struct bflb_dma_channel_lli_pool_s) * used_lli_count);
 #endif
@@ -394,12 +392,13 @@ void bflb_dma_channel_irq_attach(struct bflb_device_s *dev, void (*callback)(voi
         bflb_irq_attach(dev->irq_num, dma0_isr, NULL);
         bflb_irq_enable(dev->irq_num);
     }
-#if (defined(BL606P) || defined(BL808)) && (defined(CPU_M0) || defined(CPU_LP))
+#if (defined(BL808)) && (defined(CPU_M0) || defined(CPU_LP))
     else if (dev->idx == 1) {
         bflb_irq_attach(dev->irq_num, dma1_isr, NULL);
         bflb_irq_enable(dev->irq_num);
     }
-#elif (defined(BL606P) || defined(BL808)) && defined(CPU_D0)
+#endif
+#if ((defined(BL808)) && defined(CPU_D0))
     else if (dev->idx == 2) {
         bflb_irq_attach(dev->irq_num, dma2_isr, NULL);
         bflb_irq_enable(dev->irq_num);
@@ -598,6 +597,9 @@ int bflb_dma_feature_control(struct bflb_device_s *dev, int cmd, size_t arg)
             return getreg32(channel_base + DMA_CxCONTROL_OFFSET);
         case DMA_CMD_GET_LLI_COUNT:
             return (getreg32(channel_base + DMA_CxCONFIG_OFFSET) & DMA_LLICOUNTER_MASK) >> DMA_LLICOUNTER_SHIFT;
+        case DMA_CMD_GET_TRANSFER_PENDING:
+            return (getreg32(channel_base + DMA_CxCONTROL_OFFSET) & DMA_TRANSFERSIZE_MASK) >> DMA_TRANSFERSIZE_SHIFT;
+
 
         default:
             ret = -EPERM;

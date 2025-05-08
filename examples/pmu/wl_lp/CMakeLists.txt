@@ -19,17 +19,23 @@ sdk_add_compile_definitions(-DBL_RA_EN=1)
 sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_SOC_DEFAULT=10)
 sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_AON_DEFAULT=10)
 
+if (CONFIG_LPM)
+    sdk_add_compile_definitions(-DCFG_LPM=1)
+    sdk_add_compile_definitions(-DRC_EZ23Q4=1)
+    sdk_add_compile_definitions(-DRC_EZ23Q4_EDCA=1)
+    sdk_add_compile_definitions(-DTX_RETRY_ENABLE=1)
+endif()
+
 if (CONFIG_DCDC_ENABLE)
     sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_RT_DEFAULT=8)
 else()
     sdk_add_compile_definitions(-DPM_PDS_LDO_LEVEL_RT_DEFAULT=10)
 endif()
 
-sdk_add_compile_definitions(-DLP_FW_START_ADDR=0x63026800)
-message(WARNING "lpfw bin load in WRAM(0x63026800)")
-
 target_sources(app PRIVATE
-                   tickless.c)
+                   tickless.c
+                   wl_lp_app.c
+                   )
 
 sdk_set_main_file(main.c)
 sdk_add_include_directories(.)

@@ -150,7 +150,25 @@ SECTIONS
 
     } > itcm_memory
 
-    __dtcm_load_addr = __itcm_load_addr + SIZEOF(.itcm_region);
+    __hbn_load_addr = __itcm_load_addr + SIZEOF(.itcm_region);
+
+    .hbn_ram_region : AT (__hbn_load_addr)
+    {
+        __hbn_ram_start__ = ADDR(.hbn_ram_region);
+        __hbn_ram_end__ = ADDR(.hbn_ram_region) + SIZEOF(.hbn_ram_region);
+
+        /* put bl702_rf_private.o in hbnram to avoid ocram conflict during rf calibration */
+        *libphyrf.a:bl702_rf_private.c.o*(.retention .retention_noinit)
+        *libphyrf.a:bl702_rf_private.c.o*(.sdata.* .sbss.* .bss.* COMMON)
+
+        *(.hbn_code.*)
+        *(.hbn_data.*)
+    } > hbn_memory
+
+    ASSERT(SIZEOF(.hbn_ram_region) <= 0x400, ".hbn_ram_region overlapped with IOT2LP_PARA(refer to bl_lp.h)")
+
+
+    __dtcm_load_addr = __hbn_load_addr + SIZEOF(.hbn_ram_region);
 
     .dtcm_region : AT (__dtcm_load_addr)
     {

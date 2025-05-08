@@ -31,7 +31,7 @@ enum {
     CTL_PORT_ERROR_CODE_UNKNOWN_CMD,
 };
 
-#define CTL_PORT_MSG_MAGIC "BFLBMESG"
+#define CTL_PORT_MSG_MAGIC "HOSTRMSG"
 
 typedef PACKED_STRUCT {
     uint8_t magic[8];

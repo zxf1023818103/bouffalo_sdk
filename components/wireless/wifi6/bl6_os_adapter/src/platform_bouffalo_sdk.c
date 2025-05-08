@@ -9,11 +9,13 @@
 #include "timers.h"
 
 #include <bflb_efuse.h>
+#include <bflb_sec_trng.h>
+#include <bl616_mfg_media.h>
 
 #ifdef LP_APP
 #include "bl_lp.h"
 #include "bl616_clock.h"
-#include "export/mac/mac_frame.h"
+#include "mac_frame.h"
 
 extern int lpfw_recal_rc32k(uint64_t beacon_timestamp_now_us, uint64_t rtc_timestamp_now_us, uint32_t mode);
 extern int32_t lpfw_calculate_beacon_delay(uint64_t beacon_timestamp_us, uint64_t rtc_timestamp_us, uint32_t mode);
@@ -28,7 +30,7 @@ extern void wifi_event_handler(uint32_t code1, uint32_t code2);
 /* FIXME: Registers should not be read directly */
 /// Address of the MONOTONIC_COUNTER_2_LO register
 #define NXMAC_TSF_TIMER_LO_ADDR 0x24B080A4
-#define REG_PL_RD(addr)         (*(volatile uint32_t *)(HW2CPU(addr)))
+#define REG_PL_RD(addr)         (*(volatile uint32_t *)(addr))
 #define MAC_TSF_TIMER_LOW       REG_PL_RD(NXMAC_TSF_TIMER_LO_ADDR)
 
 /**
@@ -292,5 +294,13 @@ void platform_hook_prevent_sleep(enum PSM_EVENT event, uint8_t prevent)
     } else {
         bl_pm_event_bit_clear(event);
     }
+}
+#endif
+
+#ifdef CFG_LPM
+uint8_t platform_get_chip_version(void) {
+    bflb_efuse_device_info_type device_info;
+    bflb_efuse_get_device_info(&device_info);
+    return device_info.version;
 }
 #endif

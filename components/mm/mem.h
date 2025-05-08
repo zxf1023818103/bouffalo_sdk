@@ -48,7 +48,7 @@
 #define MEM_IS_VALID(heap) ((heap) != NULL && (heap)->mem_impl != NULL)
 
 #define KMEM_HEAP          &g_kmemheap
-#if defined(CONFIG_PSRAM) && defined(BL616) // only for bl618
+#if defined(CONFIG_PSRAM) && (!defined(CONFIG_HEAP_ALWAYS_ON_KMEM))
 #define PMEM_HEAP &g_pmemheap
 #else
 #define PMEM_HEAP &g_kmemheap
