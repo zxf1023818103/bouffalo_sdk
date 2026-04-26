@@ -37,10 +37,10 @@ sdk_add_compile_options(
 # $<$<COMPILE_LANGUAGE:C>:-Wno-override-init>
 # $<$<COMPILE_LANGUAGE:C>:-Wno-enum-conversion>
 # $<$<COMPILE_LANGUAGE:C>:-Wno-cast-function-type>
-$<$<COMPILE_LANGUAGE:C>:-std=gnu99>
-$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>
+$<$<COMPILE_LANGUAGE:C>:-std=gnu17>
+$<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>
 $<$<COMPILE_LANGUAGE:CXX>:-nostdlib>
-$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+$<$<COMPILE_LANGUAGE:CXX>:-frtti>
 $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
 -fstack-usage
 -save-temps=obj
@@ -57,7 +57,7 @@ sdk_add_link_options(
 -Wl,--print-memory-usage
 )
 
-sdk_add_link_libraries(c m)
+sdk_add_link_libraries(c m stdc++)
 
 sdk_add_compile_options_ifdef(CONFIG_DEBUG -g3)
 
