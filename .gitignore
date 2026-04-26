@@ -23,3 +23,5 @@ chiptest
 **/img_create_iot
 docs/zh/_static/**
 tools/CI
+tools/bflb_tools/bouffalo_flash_cube/chips/**/efuse_bootheader/flash_para.bin
+tools/bflb_tools/bouffalo_flash_cube/chips/**/device_tree/ro_params.dtb
