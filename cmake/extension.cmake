@@ -289,33 +289,77 @@ macro(project name)
   # link
   target_link_libraries(${proj_name}.elf -Wl,--whole-archive ${SORTED_SDK_LIBS} app -Wl,--no-whole-archive)
 
-  if(OUTPUT_DIR)
-    add_custom_command(TARGET ${proj_name}.elf POST_BUILD
-      COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${proj_name}.elf> ${BIN_FILE}
-      COMMAND ${CMAKE_OBJDUMP} -d -S $<TARGET_FILE:${proj_name}.elf> >${ASM_FILE}
-
-      # COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${proj_name}.elf> ${HEX_FILE}
-      # COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${proj_name}.elf>
-      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${proj_name}.elf> ${OUTPUT_DIR}/${name}/${proj_name}.elf
-      COMMAND ${CMAKE_COMMAND} -E copy ${ASM_FILE} ${OUTPUT_DIR}/${name}/${proj_name}.asm
-      COMMAND ${CMAKE_COMMAND} -E copy ${MAP_FILE} ${OUTPUT_DIR}/${name}/${proj_name}.map
-      COMMAND ${CMAKE_COMMAND} -E copy ${BIN_FILE} ${OUTPUT_DIR}/${name}/${proj_name}.bin
-      COMMAND ${CMAKE_COMMAND} -E copy ${BIN_FILE} ${OUTPUT_DIR}/project.bin
-      COMMENT "Generate ${BIN_FILE}\r\n"
-    )
-
-  else()
-    add_custom_command(TARGET ${proj_name}.elf POST_BUILD
-      COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${proj_name}.elf> ${BIN_FILE}
-      COMMAND ${CMAKE_OBJDUMP} -d -S $<TARGET_FILE:${proj_name}.elf> >${ASM_FILE}
-
-      # COMMAND ${CMAKE_OBJCOPY} -Oihex $<TARGET_FILE:${proj_name}.elf> ${HEX_FILE}
-      # COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${proj_name}.elf>
-      COMMENT "Generate ${BIN_FILE}\r\n"
-    )
+  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Generic")
+    set(TOOL_SUFFIX ".exe")
+  elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+    set(TOOL_SUFFIX "-ubuntu")
+  elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
+    set(TOOL_SUFFIX "-macos")
   endif()
 
-  include(${BL_SDK_BASE}/cmake/bflb_flash.cmake)
-  include(${BL_SDK_BASE}/cmake/footprint.cmake)
-  include(${BL_SDK_BASE}/cmake/gen_c_cpp_properties_json.cmake)
+  set(BFLB_IOT_TOOL_PATH ${BL_SDK_BASE}/tools/bflb_tools/bouffalo_flash_cube)
+  set(BFLB_IOT_TOOL ${BFLB_IOT_TOOL_PATH}/bflb_iot_tool${TOOL_SUFFIX})
+
+  set(BFLB_IOT_TOOL_ARGS)
+  list(APPEND BFLB_IOT_TOOL_ARGS --chipname ${CHIP})
+  list(APPEND BFLB_IOT_TOOL_ARGS --boot2 ${BFLB_IOT_TOOL_PATH}/chips/${CHIP}/config/boot2.bin)
+  list(APPEND BFLB_IOT_TOOL_ARGS --dts ${BFLB_IOT_TOOL_PATH}/chips/${CHIP}/config/bl_factory_params.dts)
+  list(APPEND BFLB_IOT_TOOL_ARGS --pt ${BFLB_IOT_TOOL_PATH}/chips/${CHIP}/config/partition_cfg.toml)
+  list(APPEND BFLB_IOT_TOOL_ARGS --firmware ${BIN_FILE})
+  list(APPEND BFLB_IOT_TOOL_ARGS --outdir .)
+  list(APPEND BFLB_IOT_TOOL_ARGS --ota .)
+  list(APPEND BFLB_IOT_TOOL_ARGS --build)
+
+  set(BL_FW_POST_PROC ${BL_SDK_BASE}/tools/bflb_tools/bflb_fw_post_proc/bflb_fw_post_proc${TOOL_SUFFIX})
+
+  set(BL_FW_POST_PROC_CONFIG
+    --chipname=${CHIP}
+    --imgfile=${BIN_FILE}
+    --appkeys=shared
+    --brdcfgdir=${BFLB_IOT_TOOL_PATH}/chips/${CHIP}/config)
+
+  if(CONFIG_AES_KEY)
+    list(APPEND BL_FW_POST_PROC_CONFIG --key=${CONFIG_AES_KEY})
+    list(APPEND BFLB_IOT_TOOL_ARGS --key ${CONFIG_AES_KEY})
+  endif()
+
+  if(CONFIG_AES_IV)
+    list(APPEND BL_FW_POST_PROC_CONFIG --iv=${CONFIG_AES_IV})
+    list(APPEND BFLB_IOT_TOOL_ARGS --iv ${CONFIG_AES_IV})
+  endif()
+
+  if(CONFIG_PUBLIC_KEY)
+    list(APPEND BL_FW_POST_PROC_CONFIG --publickey=${CONFIG_PUBLIC_KEY})
+    list(APPEND BFLB_IOT_TOOL_ARGS --pk ${CONFIG_PUBLIC_KEY})
+  endif()
+
+  if(CONFIG_PRIVATE_KEY)
+    list(APPEND BL_FW_POST_PROC_CONFIG --privatekey=${CONFIG_PRIVATE_KEY})
+    list(APPEND BFLB_IOT_TOOL_ARGS --sk ${CONFIG_PRIVATE_KEY})
+  endif()
+
+  if(CONFIG_FW_POST_PROC_CUSTOM)
+    list(APPEND BL_FW_POST_PROC_CONFIG ${CONFIG_FW_POST_PROC_CUSTOM})
+  endif()
+
+  set(post_build_cmds)
+  foreach(item ${CONFIG_POST_BUILDS})
+    if("${item}" STREQUAL "CONCAT_WITH_LP_FW")
+      list(APPEND post_build_cmds COMMAND ${BL_SDK_BASE}/tools/lpfw/patch_lpfw${TOOL_SUFFIX} ${BIN_FILE} ${BL_SDK_BASE}/tools/lpfw/bin/${CHIP}_lp_fw.bin)
+    elseif("${item}" STREQUAL "GENERATE_ROMFS")
+      list(APPEND BFLB_IOT_TOOL_ARGS --romfs ${CMAKE_CURRENT_SOURCE_DIR}/romfs)
+    elseif("${item}" STREQUAL "GENERATE_LITTLEFS")
+      list(APPEND post_build_cmds COMMAND ${BL_SDK_BASE}/tools/genlfs/mklfs${TOOL_SUFFIX} -c ${CMAKE_CURRENT_SOURCE_DIR}/lfs/ -b 4096 -p 256 -r 256 -s 0x71000 -i littlefs.bin)
+      list(APPEND BFLB_IOT_TOOL_ARGS --media littlefs.bin)
+    endif()
+  endforeach()
+
+  add_custom_command(TARGET ${proj_name}.elf POST_BUILD
+    COMMAND ${CMAKE_OBJCOPY} -Obinary $<TARGET_FILE:${proj_name}.elf> ${BIN_FILE}
+    # COMMAND ${CMAKE_OBJDUMP} -d -S $<TARGET_FILE:${proj_name}.elf> >${ASM_FILE}
+    ${post_build_cmds}
+    COMMAND ${BL_FW_POST_PROC} ${BL_FW_POST_PROC_CONFIG}
+    COMMAND ${BFLB_IOT_TOOL} ${BFLB_IOT_TOOL_ARGS}
+    WORKING_DIRECTORY build_out
+  )
 endmacro()
