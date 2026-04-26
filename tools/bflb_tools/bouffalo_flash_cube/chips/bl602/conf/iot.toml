@@ -1,0 +1,42 @@
+[param]
+interface_type = "uart"
+comport_uart = "COM6"
+speed_uart = "921600"
+speed_jlink = "1000"
+chip_xtal = "40M"
+ota = ""
+version = ""
+aes_key = ""
+aes_iv = ""
+addr = "0x0"
+
+[check_box]
+fw_download = true
+mfg_download = false
+media_download = false
+romfs_download = false
+psm_download = false
+key_download = false
+data_download = false
+factory_download = true
+boot2_download = true
+ckb_erase_all = "False"
+partition_download = true
+encrypt = false
+sign = false
+single_download = true
+
+[input_path]
+img_bin_input = "C:/Users/zxf10/Desktop/P23.2.2_0612.bin"
+fw_bin_input = "C:/Users/zxf10/Desktop/P23.2.2_0612.bin"
+mfg_bin_input = ""
+media_bin_input = ""
+romfs_dir_input = ""
+psm_bin_input = ""
+key_bin_input = ""
+data_bin_input = ""
+factory_bin_input = "D:/MCU_Tools/下载需要的其它分区文件/05-bl_factory_params_IoTKitA_40M-频偏22-20220919.dts"
+boot2_bin_input = "D:/MCU_Tools/下载需要的其它分区文件/boot2_iap_release_5.8.1.bin"
+pt_table_bin_input = "D:/MCU_Tools/下载需要的其它分区文件/partition_cfg_4M-OTA.toml"
+publickey = ""
+privatekey = ""
