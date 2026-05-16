@@ -331,5 +331,13 @@ SECTIONS
 
     /* EM size */
     PROVIDE( __LD_CONFIG_EM_SEL = __EM_SIZE );
+
+    /DISCARD/ :
+    {
+        *(.eh_frame)
+        *(.eh_frame.*)
+        *(.gcc_except_table)
+        *(.gcc_except_table.*)
+    }
 }
 

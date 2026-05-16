@@ -41,6 +41,8 @@ sdk_add_compile_options(
     $<$<COMPILE_LANGUAGE:CXX>:-nostdlib>
     $<$<COMPILE_LANGUAGE:CXX>:-frtti>
     $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+    -fno-unwind-tables
+    -fno-asynchronous-unwind-tables
     -fstack-usage
     -save-temps=obj
 )

@@ -8,9 +8,9 @@ type = 0
 name = "FW"
 device = 0
 address0 = 0x10000
-size0 = 0xD8000
-address1 = 0xE8000
-size1 = 0x88000
+size0 = 0xE0000
+address1 = 0xF0000
+size1 = 0x80000
 # compressed image must set len,normal image can left it to 0
 len = 0
 
