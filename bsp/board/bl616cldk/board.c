@@ -257,17 +257,17 @@ static void console_init()
 {
 #ifdef CONFIG_CONSOLE_WO
     wo = bflb_device_get_by_name("wo");
-    bflb_wo_uart_init(wo, CONFIG_CONSOLE_UART_BAUDRATE, GPIO_PIN_34);
+    bflb_wo_uart_init(wo, CONFIG_CONSOLE_UART_BAUDRATE, GPIO_PIN_30);
     bflb_wo_set_console(wo);
 #else
     struct bflb_device_s *gpio;
 
     gpio = bflb_device_get_by_name("gpio");
 
-    pm_disable_gpio_keep(GPIO_PIN_34);
+    pm_disable_gpio_keep(GPIO_PIN_30);
     pm_disable_gpio_keep(GPIO_PIN_35);
 
-    bflb_gpio_uart_init(gpio, GPIO_PIN_34, GPIO_UART_FUNC_UART0_TX);
+    bflb_gpio_uart_init(gpio, GPIO_PIN_30, GPIO_UART_FUNC_UART0_TX);
     bflb_gpio_uart_init(gpio, GPIO_PIN_35, GPIO_UART_FUNC_UART0_RX);
 
     struct bflb_uart_config_s cfg = { 0 };

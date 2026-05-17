@@ -123,8 +123,8 @@ static void console_init()
     struct bflb_device_s *gpio;
 
     gpio = bflb_device_get_by_name("gpio");
-    bflb_gpio_uart_init(gpio, GPIO_PIN_16, GPIO_UART_FUNC_UART0_TX);
-    bflb_gpio_uart_init(gpio, GPIO_PIN_7, GPIO_UART_FUNC_UART0_RX);
+    bflb_gpio_uart_init(gpio, GPIO_PIN_4, GPIO_UART_FUNC_UART0_TX);
+    bflb_gpio_uart_init(gpio, GPIO_PIN_3, GPIO_UART_FUNC_UART0_RX);
 
     struct bflb_uart_config_s cfg;
     cfg.baudrate = CONFIG_CONSOLE_UART_BAUDRATE;
