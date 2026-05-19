@@ -20,7 +20,10 @@ static lfs_t *lfs = NULL;
 static char path_buffer[EF_ENV_NAME_MAX];
 
 #ifndef LFS_EF_NAMESPACE
-#define LFS_EF_NAMESPACE "/_ef4_kvs_"
+/* aligned with Ameba SDK's rt_kv (component/.../file_system/kv/kv.c) so that
+ * a single littlefs image is interchangeable across bouffalo / ameba. See
+ * doc/kv.md in the at-project root. */
+#define LFS_EF_NAMESPACE "/KV"
 #endif
 
 #ifdef CONFIG_FREERTOS
