@@ -252,6 +252,16 @@ macro(sdk_set_main_file)
 endmacro()
 
 macro(project name)
+  # Nested project() calls (e.g. from a third-party add_subdirectory like
+  # zlib's `project(zlib C)`) must NOT trigger the main-project setup
+  # below — it rebuilds build/.../generated/autoconf_new.h from scratch,
+  # but in the nested scope get_cmake_property(VARIABLES) doesn't see
+  # the parent's CONFIG_* variables, so the file ends up unwritten and
+  # the file(MD5) at the end crashes with "No such file". Fall through
+  # to plain _project() for nested calls and skip the rest.
+  if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    _project(${name} ${ARGN})
+  else()
   if(CPU_ID)
     set(proj_name ${name}_${CHIP}_${CPU_ID})
   else()
@@ -412,5 +422,6 @@ macro(project name)
 
   sdk_add_compile_options(-include ${CMAKE_BINARY_DIR}/generated/autoconf.h)
   sdk_add_include_directories(.)
+  endif()  # end "top-level project" guard
 
 endmacro()
