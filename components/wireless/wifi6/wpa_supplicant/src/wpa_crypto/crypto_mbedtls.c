@@ -1261,30 +1261,30 @@ cleanup:
 }
 
 
+/* f_rng adapter over the supplicant's own random_get_bytes(), which is what the rest of
+ * this file already uses (see crypto_bignum_rand()). */
+static int crypto_mbedtls_supp_rng(void *ctx, unsigned char *buf, size_t len)
+{
+    (void)ctx;
+    return random_get_bytes(buf, len) ? -1 : 0;
+}
+
 int crypto_ec_point_mul(struct crypto_ec *e, const struct crypto_ec_point *p,
                         const struct crypto_bignum *b,
                         struct crypto_ec_point *res)
 {
-    int ret;
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-
-    MBEDTLS_MPI_CHK(mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                    NULL, 0));
-
-    MBEDTLS_MPI_CHK(mbedtls_ecp_mul(&e->group,
+    /* This used to seed a private CTR_DRBG from mbedtls_entropy_func(). That seed fails on
+     * this port with MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED (-0x0034), which took down
+     * every WPA3/SAE association: SAE gets through the hash steps and then dies at the PWE
+     * point multiply, reported only as "SAE: Failed to build SAE commit" -> the AP sees an
+     * authentication timeout. Drive mbedtls_ecp_mul() from the supplicant's own RNG instead
+     * (mbedTLS >= 3.x also rejects a NULL f_rng outright, so one has to be supplied). */
+    return mbedtls_ecp_mul(&e->group,
                 (mbedtls_ecp_point *) res,
                 (const mbedtls_mpi *)b,
                 (const mbedtls_ecp_point *)p,
-                mbedtls_ctr_drbg_random,
-                &ctr_drbg));
-cleanup:
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-    return ret ? -1 : 0;
+                crypto_mbedtls_supp_rng,
+                NULL) ? -1 : 0;
 }
 
 
